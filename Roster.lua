@@ -1,0 +1,1434 @@
+-- TortoiseBotsManager/Roster.lua
+--
+-- The server-owned snapshot is the only roster authority.  SavedVariables are
+-- intentionally not consulted here: offline ownership rows arrive in the
+-- TBM:ROSTER_BEGIN/ROSTER/ROSTER_END stream and disappear only when the server
+-- says they do.  Live CC preferences arrive in the separate
+-- TBM:CC_ASSIGN_BEGIN/CC_ASSIGN/CC_ASSIGN_END stream. Legacy .bot list/status
+-- replies are retained as an online diagnostic until the first structured
+-- snapshot has completed.
+
+local TB = TortoiseBots
+local C = TB.C or {}
+local S = C.STATUS or {
+    OFFLINE = "offline", OFFLINE_PENDING = "offline-pending", UNKNOWN = "unknown",
+    FAILED = "failed", QUEUED = "queued", STARTING = "starting", ONLINE = "online",
+    COMMANDING = "commanding", SUMMONING = "summoning", INVITING = "inviting",
+    KICKING = "kicking", REMOVING = "removing",
+}
+C.STATUS = S
+
+-- state[name] is ephemeral client state layered over the latest server row.
+-- source == "snapshot" is displayable; other sources are compatibility
+-- diagnostics/optimistic lifecycle state and never create an offline roster row.
+local state = {}
+local groupMembers = {}
+local groupKnown = false
+local rosterSnapshotReady = false
+local rosterSnapshotCount = 0
+local rosterSnapshotError = nil
+local receiving = nil
+local ccReceiving = nil
+local altsumReceiving = nil
+local claimedReceiving = nil
+local legacyState = {}
+local ccAssignments = {}
+local claimedState = {}
+local claimedBots = {}
+local claimedSnapshotReady = false
+
+-- Legacy list reconciliation remains useful when talking to an older module,
+-- but is deliberately not used once a structured snapshot is available.
+local pollSeen = {}
+local pollActive = false
+local pollGotAny = false
+local pollNoReplyCount = 0
+
+TB.rosterSelection = TB.rosterSelection or {}
+TB.claimedSelection = TB.claimedSelection or {}
+
+-- Session-only column sorts (like the class filter): the picked column and
+-- direction, remembered while the tab stays open. Defaults match the old
+-- lists (roster: online first; guild: highest level first).
+TB.rosterSort = TB.rosterSort or { key = "status", dir = 1 }
+TB.guildSort = TB.guildSort or { key = "level", dir = -1 }
+TB._debugState = state
+TB._debugGroup = groupMembers
+TB._debugCcAssignments = ccAssignments
+TB._debugClaimedState = claimedState
+TB.rosterSnapshotReady = false
+TB.claimedSnapshotReady = false
+
+local function normalize(name)
+    return TB.NormalizeName and TB.NormalizeName(name or "") or name
+end
+
+local function now()
+    return (GetTime and GetTime()) or 0
+end
+
+local function clearTable(t)
+    for key in pairs(t) do t[key] = nil end
+    -- The 1.12 client (Lua 5.0) keeps an explicit array size; without this
+    -- table.insert appends after stale nil slots. Lua 5.1 tests reject setn.
+    pcall(table.setn, t, 0)
+end
+
+local function isOfflineValue(value)
+    value = string.lower(TB.Trim(value or ""))
+    return value == "" or value == "offline" or value == "logged out"
+        or value == "logout" or value == "removed" or value == "not online"
+end
+
+local function serverStatus(value)
+    local text = string.lower(TB.Trim(value or ""))
+    if isOfflineValue(text) then return S.OFFLINE, false, false end
+    if text == "starting" or text == "pending" or text == "loading" then
+        return S.STARTING, true, false
+    end
+    if text == "removing" or text == "stopping" or text == "logging out" then
+        return S.REMOVING, true, false
+    end
+    if text == "online" or text == "in world" or text == "in_world" then
+        return S.ONLINE, true, true
+    end
+    return S.UNKNOWN, false, false
+end
+
+local function displayState(st)
+    if not st then return false end
+    if st.source == "snapshot" then return true end
+    -- Before structured support is available, only live legacy diagnostics are
+    -- allowed through.  An offline client-side name never becomes a row.
+    return not rosterSnapshotReady and st.source == "legacy" and st.online == true
+end
+
+local function isControllable(st)
+    if not st or st.operation then return false end
+    if st.serverState then
+        return st.serverState == "online" or st.serverState == "in world"
+            or st.serverState == "in_world"
+    end
+    return st.online == true and st.status ~= S.UNKNOWN and st.status ~= S.FAILED
+        and st.status ~= S.STARTING and st.status ~= S.REMOVING
+end
+
+local function setSnapshotRow(row)
+    local name = normalize(row.name)
+    if not name then return nil end
+    local status, online, enteredWorld = serverStatus(row.serverState)
+    local classId = tonumber(row.classId) or 0
+    local location = TB.Trim(row.location or "")
+    if location == "" or location == "-" then location = nil end
+    -- The protocol promises pipe-safe fields.  Keep the UI safe even if an
+    -- older module violates that promise.
+    if location then location = string.gsub(location, "|", "/") end
+    local ccMark = string.lower(TB.Trim(row.ccMark or ""))
+    local ccMarkKnown = row.ccMark ~= nil
+    if ccMark == "" or ccMark == "-" or not (C.CC_MARK_LABELS and C.CC_MARK_LABELS[ccMark]) then
+        ccMark = nil
+    end
+    local serverClassName = TB.Trim(row.className or "")
+    if serverClassName == "" or serverClassName == "-" then serverClassName = nil end
+    return {
+        guid = tostring(row.guid or ""),
+        name = name,
+        classId = classId,
+        serverClassName = serverClassName,
+        className = TB.GetClassName(classId, serverClassName, name),
+        serverState = string.lower(TB.Trim(row.serverState or "")),
+        state = row.serverState,
+        group = row.group == true and true or false,
+        location = location,
+        ccMark = ccMark,
+        ccMarkKnown = ccMarkKnown,
+        source = "snapshot",
+        status = status,
+        online = online,
+        enteredWorld = enteredWorld,
+        hasAI = online and true or false,
+        onlinePending = 0,
+    }
+end
+
+local function splitPipe(text)
+    local out = {}
+    local start = 1
+    while true do
+        local at = string.find(text, "|", start, true)
+        if at then
+            table.insert(out, string.sub(text, start, at - 1))
+            start = at + 1
+        else
+            table.insert(out, string.sub(text, start))
+            break
+        end
+    end
+    return out
+end
+
+local function protocolFields(msg, prefix)
+    if string.sub(msg, 1, string.len(prefix)) ~= prefix then return nil end
+    return splitPipe(string.sub(msg, string.len(prefix) + 1))
+end
+
+local function snapshotError(code, message)
+    rosterSnapshotError = {
+        code = TB.Trim(code or "unknown"),
+        message = TB.Trim(message or "Roster request failed."),
+    }
+    receiving = nil
+    ccReceiving = nil
+    TB._pollPending = false
+    TB._pollQueued = false
+    TB.rosterSnapshotError = rosterSnapshotError
+    if TB.Refresh then TB.Refresh() end
+end
+-- One bad row no longer poisons the whole snapshot: count it and keep
+-- receiving the rest. The END handler commits the good rows and reports how
+-- many were skipped once every announced row is accounted for.
+local function skipSnapshotRow()
+    if receiving then receiving.skipped = (receiving.skipped or 0) + 1 end
+end
+
+local function commitSnapshot(rows)
+    local previousSelection = {}
+    for name in pairs(TB.rosterSelection) do previousSelection[name] = true end
+    clearTable(state)
+    clearTable(legacyState)
+    local present = {}
+    for _, row in ipairs(rows) do
+        local entry = setSnapshotRow(row)
+        if entry and not present[entry.name] then
+            if not entry.ccMark and not entry.ccMarkKnown and ccAssignments[entry.name] then
+                entry.ccMark = ccAssignments[entry.name]
+            elseif entry.ccMark then
+                ccAssignments[entry.name] = entry.ccMark
+            elseif entry.ccMarkKnown then
+                ccAssignments[entry.name] = nil
+            end
+            state[entry.name] = entry
+            present[entry.name] = true
+        end
+    end
+    -- A roster response can arrive before the client receives a group event.
+    -- Treat the server's group flag as the same authoritative completion
+    -- signal for an invite batch.
+    for name, entry in pairs(state) do
+        if entry.group and TB.OnRosterBatchInviteJoined then
+            TB.OnRosterBatchInviteJoined(name)
+        end
+    end
+    clearTable(TB.rosterSelection)
+    for name in pairs(previousSelection) do
+        if state[name] then TB.rosterSelection[name] = true end
+    end
+    rosterSnapshotReady = true
+    TB.rosterSnapshotReady = true
+    rosterSnapshotCount = table.getn(rows)
+    rosterSnapshotError = nil
+    TB.rosterSnapshotError = nil
+    TB._pollPending = false
+    TB._pollQueued = false
+    pollActive = false
+    if TB.Refresh then TB.Refresh() end
+end
+
+local function commitCcAssignments(rows)
+    clearTable(ccAssignments)
+    local present = {}
+    for _, row in ipairs(rows) do
+        ccAssignments[row.name] = row.mark
+        present[row.name] = true
+        if state[row.name] then state[row.name].ccMark = row.mark end
+    end
+    -- The assignment stream only reports live AI records. Clear stale values
+    -- from online snapshot rows while leaving offline rows unknown.
+    for name, entry in pairs(state) do
+        if entry.source == "snapshot" and entry.online and not present[name] then
+            entry.ccMark = nil
+        end
+    end
+    if TB.Refresh then TB.Refresh() end
+end
+
+local function commitClaimedSnapshot(rows)
+    local previousSelection = {}
+    for name in pairs(TB.claimedSelection) do previousSelection[name] = true end
+    clearTable(claimedState)
+    clearTable(claimedBots)
+    clearTable(TB.claimedSelection)
+    for _, row in ipairs(rows) do
+        local name = normalize(row.name)
+        if name then
+            local status, online, enteredWorld = serverStatus(row.serverState)
+            local classId = tonumber(row.classId) or 0
+            local location = TB.Trim(row.location or "")
+            if location == "" or location == "-" then location = nil end
+            if location then location = string.gsub(location, "|", "/") end
+            local serverClassName = TB.Trim(row.className or "")
+            if serverClassName == "" or serverClassName == "-" then serverClassName = nil end
+            local entry = {
+                guid = tostring(row.guid or ""),
+                name = name,
+                classId = classId,
+                serverClassName = serverClassName,
+                className = TB.GetClassName(classId, serverClassName, name),
+                level = tonumber(row.level) or 1,
+                serverState = string.lower(TB.Trim(row.serverState or "")),
+                group = row.group == true,
+                location = location,
+                gearLocked = row.gearLocked == true,
+                status = status,
+                online = online,
+                enteredWorld = enteredWorld,
+                profs = row.profs,
+                alt = row.alt == true,
+            }
+            claimedState[name] = entry
+            table.insert(claimedBots, entry)
+            if previousSelection[name] then
+                TB.claimedSelection[name] = true
+            end
+        end
+    end
+    table.sort(claimedBots, function(a, b)
+        if a.level ~= b.level then
+            return a.level > b.level
+        end
+        return a.name < b.name
+    end)
+    claimedSnapshotReady = true
+    TB.claimedSnapshotReady = true
+    if TB.RefreshGuildView then TB.RefreshGuildView() end
+    if TB.Refresh then TB.Refresh() end
+end
+
+-- Alt-bot summary (reply to ".bot alts"): one TBM:ALTSUM|<name>|<text>
+-- line per alt-bot playing on its own, then TBM:ALTSUM_END|<count>.
+-- The text is a ready sentence and may hold item links, so only the first
+-- two fields split on "|".
+local function commitAltSummary(rows)
+    local count = table.getn(rows)
+    if count == 0 then
+        if TB.LogMessage then TB.LogMessage("No alt-bots are playing on their own.") end
+        if TB.SetStatus then TB.SetStatus("No alt-bots are playing on their own.", "muted") end
+        return
+    end
+    for _, row in ipairs(rows) do
+        if TB.LogMessage then TB.LogMessage(row.text) end
+    end
+    if TB.SetStatus then
+        local label = "Alt summary · " .. count .. " alt-bot"
+        if count ~= 1 then label = label .. "s" end
+        TB.SetStatus(label, "ok")
+    end
+end
+
+-- Called by Comms.lua for each structured line.  Return true for every
+-- TBM-prefixed line, including malformed lines, so legacy text handlers do not
+-- reinterpret a protocol error as a bot name.
+function TB.ParseRosterMessage(msg)
+    if not msg or msg == "" then return false end
+
+    local fields = protocolFields(msg, "TBM:CC_ASSIGN_BEGIN|")
+    if fields then
+        if table.getn(fields) < 1 or not string.find(fields[1], "^%d+$") then
+            ccReceiving = nil
+            return true, "error", { code = "malformed_cc_begin", message = "Malformed CC assignment snapshot." }
+        end
+        ccReceiving = { expected = tonumber(fields[1]), rows = {}, names = {} }
+        return true, "cc_begin", ccReceiving.expected
+    end
+
+    fields = protocolFields(msg, "TBM:CC_ASSIGN|")
+    if fields then
+        if not ccReceiving or table.getn(fields) < 2 then
+            ccReceiving = nil
+            return true, "error", { code = "malformed_cc_row", message = "Malformed CC assignment snapshot." }
+        end
+        local name, mark = unpack(fields)
+        name = normalize(name)
+        mark = string.lower(TB.Trim(mark or ""))
+        if not name or ccReceiving.names[name] or not (C.CC_MARK_LABELS and C.CC_MARK_LABELS[mark]) then
+            ccReceiving = nil
+            return true, "error", { code = "malformed_cc_row", message = "Malformed CC assignment snapshot." }
+        end
+        ccReceiving.names[name] = true
+        table.insert(ccReceiving.rows, { name = name, mark = mark })
+        return true, "cc_row", name
+    end
+
+    if msg == "TBM:CC_ASSIGN_END" then
+        if not ccReceiving then
+            return true, "error", { code = "unexpected_cc_end", message = "Unexpected CC assignment snapshot end." }
+        end
+        local batch = ccReceiving
+        ccReceiving = nil
+        if table.getn(batch.rows) ~= batch.expected then
+            return true, "error", { code = "cc_count_mismatch", message = "Incomplete CC assignment snapshot." }
+        end
+        commitCcAssignments(batch.rows)
+        return true, "cc_end", batch.expected
+    end
+
+    fields = protocolFields(msg, "TBM:ROSTER_BEGIN|")
+    if fields then
+        if table.getn(fields) ~= 1 or not string.find(fields[1], "^%d+$") then
+            snapshotError("malformed_begin", "Malformed roster snapshot.")
+            return true, "error"
+        end
+        receiving = { expected = tonumber(fields[1]), rows = {}, names = {} }
+        -- The alt-bot line follows each snapshot; an older server sends none.
+        for _, st in pairs(state) do st.altBot = nil end
+        rosterSnapshotError = nil
+        TB.rosterSnapshotError = nil
+        return true, "begin", receiving.expected
+    end
+
+    fields = protocolFields(msg, "TBM:ROSTER|")
+    if fields then
+        if not receiving then
+            snapshotError("malformed_row", "Malformed roster snapshot.")
+            return true, "error"
+        end
+        if table.getn(fields) < 6 then
+            skipSnapshotRow()
+            return true, "row"
+        end
+        local guid, name, classId, serverState, group, location, f7, f8 = unpack(fields)
+        local ccMark, serverClassName
+        if f8 ~= nil then
+            ccMark = f7
+            serverClassName = f8
+        elseif f7 and f7 ~= "" and f7 ~= "-" then
+            if C.CC_MARK_LABELS and C.CC_MARK_LABELS[string.lower(TB.Trim(f7))] then
+                ccMark = f7
+            else
+                serverClassName = f7
+            end
+        end
+        if TB.Trim(guid) == "" or TB.Trim(name) == "" or not string.find(classId, "^%d+$")
+            or TB.Trim(serverState) == "" or (group ~= "0" and group ~= "1")
+            or TB.Trim(location) == "" then
+            skipSnapshotRow()
+            return true, "row"
+        end
+        local normalized = normalize(name)
+        if not normalized or receiving.names[normalized] then
+            skipSnapshotRow()
+            return true, "row"
+        end
+        receiving.names[normalized] = true
+        table.insert(receiving.rows, {
+            guid = guid,
+            name = name,
+            classId = classId,
+            serverState = serverState,
+            group = group == "1",
+            location = location,
+            ccMark = ccMark,
+            className = serverClassName,
+        })
+        return true, "row", normalized
+    end
+
+    if msg == "TBM:ROSTER_END" then
+        if not receiving then
+            snapshotError("unexpected_end", "Unexpected roster snapshot end.")
+            return true, "error"
+        end
+        local batch = receiving
+        receiving = nil
+        if table.getn(batch.rows) + (batch.skipped or 0) ~= batch.expected then
+            snapshotError("count_mismatch", "Incomplete roster snapshot.")
+            return true, "error"
+        end
+        commitSnapshot(batch.rows)
+        if (batch.skipped or 0) > 0 then
+            rosterSnapshotError = {
+                code = "partial_rows",
+                message = tostring(batch.skipped) .. " malformed roster row(s) skipped.",
+            }
+            TB.rosterSnapshotError = rosterSnapshotError
+            if TB.Refresh then TB.Refresh() end
+            return true, "error", rosterSnapshotError
+        end
+        return true, "end", batch.expected
+    end
+
+    -- "TBM:ALTBOTS|Name1,Name2" (TortoiseBots #872): owned characters that
+    -- currently play on their own. Sent after the roster rows; may be empty.
+    if string.sub(msg, 1, 12) == "TBM:ALTBOTS|" then
+        local list = string.sub(msg, 13)
+        local names = {}
+        for raw in string.gfind(list, "[^,]+") do
+            local n = normalize(raw)
+            if n then names[n] = true end
+        end
+        for name, st in pairs(state) do st.altBot = names[name] or nil end
+        if TB.Refresh then TB.Refresh() end
+        return true, "altbots"
+    end
+
+    -- Alt-bot summary lines, collected until TBM:ALTSUM_END commits them.
+    -- A malformed row is dropped but still claimed, so legacy text handlers
+    -- never reinterpret a protocol line as a bot name.
+    if string.sub(msg, 1, 14) == "TBM:ALTSUM_END" then
+        local batch = altsumReceiving
+        altsumReceiving = nil
+        commitAltSummary(batch and batch.rows or {})
+        return true, "altsum_end"
+    end
+    if string.sub(msg, 1, 10) == "TBM:ALTSUM" then
+        if string.sub(msg, 1, 11) == "TBM:ALTSUM|" then
+            altsumReceiving = altsumReceiving or { rows = {} }
+            local _, _, rawName, text = string.find(msg, "^TBM:ALTSUM|([^|]*)|(.*)$")
+            local name = normalize(rawName)
+            text = TB.Trim(text or "")
+            if name and text ~= "" then
+                table.insert(altsumReceiving.rows, { name = name, text = text })
+            end
+        end
+        return true
+    end
+
+    fields = protocolFields(msg, "TBM:CLAIMED_BEGIN|")
+    if fields then
+        if table.getn(fields) < 1 or not string.find(fields[1], "^%d+$") then
+            claimedReceiving = nil
+            return true, "error", { code = "malformed_claimed_begin", message = "Malformed claimed bots snapshot." }
+        end
+        claimedReceiving = { expected = tonumber(fields[1]), rows = {}, names = {} }
+        return true, "claimed_begin", claimedReceiving.expected
+    end
+
+    fields = protocolFields(msg, "TBM:CLAIMED|")
+    if fields then
+        local count = table.getn(fields)
+        -- Fields past the 10th come from newer servers and are ignored, so a
+        -- module update that appends a field does not break older addons.
+        if not claimedReceiving or count < 8 then
+            claimedReceiving = nil
+            return true, "error", { code = "malformed_claimed_row", message = "Malformed claimed bot row." }
+        end
+        local guid, name, classId, level, serverState, group, location, gearLocked = unpack(fields)
+        if TB.Trim(guid) == "" or TB.Trim(name) == "" or not string.find(classId, "^%d+$")
+            or not string.find(level, "^%d+$") or TB.Trim(serverState) == ""
+            or (group ~= "0" and group ~= "1") or (gearLocked ~= "0" and gearLocked ~= "1") then
+            claimedReceiving = nil
+            return true, "error", { code = "malformed_claimed_row", message = "Malformed claimed bot row." }
+        end
+        -- Trailing professions from newer servers ("skillId:value;..." or "-");
+        -- older servers send no field and keep no professions.
+        local profs = nil
+        if count >= 9 then
+            profs = TB.ParseClaimedProfs and TB.ParseClaimedProfs(fields[9]) or nil
+            if fields[9] ~= "-" and fields[9] ~= "" and profs == nil then
+                claimedReceiving = nil
+                return true, "error", { code = "malformed_claimed_row", message = "Malformed claimed bot row." }
+            end
+            if profs and table.getn(profs) == 0 then profs = nil end
+        end
+        -- Trailing alt flag: the player's own alt in the guild, not a claimed bot.
+        local alt = count >= 10 and fields[10] == "1"
+        -- Trailing class name from ChrClasses.dbc; missing on older servers.
+        local serverClassName = count >= 11 and fields[11] or nil
+        local normalized = normalize(name)
+        if not normalized or claimedReceiving.names[normalized] then
+            claimedReceiving = nil
+            return true, "error", { code = "malformed_claimed_row", message = "Duplicate claimed bot row." }
+        end
+        claimedReceiving.names[normalized] = true
+        table.insert(claimedReceiving.rows, {
+            guid = guid,
+            name = name,
+            classId = tonumber(classId) or 0,
+            level = tonumber(level) or 1,
+            serverState = serverState,
+            group = (group == "1"),
+            location = location,
+            gearLocked = (gearLocked == "1"),
+            profs = profs,
+            alt = alt,
+            className = serverClassName,
+        })
+        return true, "claimed_row", normalized
+    end
+
+    if msg == "TBM:CLAIMED_END" then
+        -- A rejected row already dropped the batch and reported why; staying
+        -- quiet here keeps that reason on screen.
+        if not claimedReceiving then return true end
+        local batch = claimedReceiving
+        claimedReceiving = nil
+        if table.getn(batch.rows) ~= batch.expected then
+            return true, "error", { code = "claimed_count_mismatch", message = "Incomplete claimed bot snapshot." }
+        end
+        commitClaimedSnapshot(batch.rows)
+        return true, "claimed_end", batch.expected
+    end
+
+    fields = protocolFields(msg, "TBM:ROSTER_ERROR|")
+    if fields then
+        if table.getn(fields) < 2 then
+            snapshotError("malformed_error", "Roster request failed.")
+        else
+            snapshotError(fields[1], fields[2])
+        end
+        return true, "error", rosterSnapshotError
+    end
+
+    return false
+end
+
+-- Ask every alt-bot playing on its own what it did while the player was
+-- away. The server answers with TBM:ALTSUM lines and TBM:ALTSUM_END.
+function TB.RequestAltSummary()
+    if TB.SetStatus then TB.SetStatus("Asking your alt-bots for a summary…", "pending") end
+    return TB.SendBotCommand("alts")
+end
+
+function TB.HasRosterSnapshot()
+    return rosterSnapshotReady
+end
+
+function TB.GetRosterSnapshotError()
+    return rosterSnapshotError
+end
+
+function TB.GetRosterSnapshot()
+    local rows = {}
+    for _, entry in ipairs(TB.GetDisplayRows and TB.GetDisplayRows("") or {}) do
+        table.insert(rows, entry)
+    end
+    return rows
+end
+
+-- ── lifecycle ───────────────────────────────────────────────────────────────
+function TB.InitRoster()
+    clearTable(state)
+    clearTable(groupMembers)
+    clearTable(TB.rosterSelection)
+    clearTable(legacyState)
+    clearTable(ccAssignments)
+    clearTable(pollSeen)
+    rosterSnapshotReady = false
+    rosterSnapshotCount = 0
+    rosterSnapshotError = nil
+    receiving = nil
+    groupKnown = false
+    pollActive = false
+    pollGotAny = false
+    pollNoReplyCount = 0
+    TB.rosterSnapshotReady = false
+    TB.rosterSnapshotError = nil
+end
+
+-- ── legacy poll window ──────────────────────────────────────────────────────
+function TB.BeginPoll(verb)
+    clearTable(pollSeen)
+    pollActive = true
+    pollGotAny = false
+    TB._pollVerb = verb or "roster"
+end
+
+function TB.MarkPollSeen(name)
+    name = normalize(name)
+    if name and pollActive then
+        pollSeen[name] = true
+        pollGotAny = true
+    end
+end
+
+function TB.MarkPollGotAny()
+    pollGotAny = true
+end
+
+function TB.ReconcilePoll()
+    if not pollActive then return end
+    pollActive = false
+    if TB._pollPending ~= nil then TB._pollPending = false end
+    -- A structured snapshot commits itself at ROSTER_END; this path is only
+    -- for the compatibility .bot list stream.
+    if rosterSnapshotReady then return end
+    if not pollGotAny then
+        pollNoReplyCount = pollNoReplyCount + 1
+        if pollNoReplyCount >= (C.POLL_NO_REPLY_LIMIT or 2) then
+            for _, st in pairs(state) do
+                if st.source == "legacy" and st.online and not st.operation then
+                    st.status = S.UNKNOWN
+                end
+            end
+        end
+        if TB.Refresh then TB.Refresh() end
+        return
+    end
+    pollNoReplyCount = 0
+    for name, st in pairs(state) do
+        if st.source == "legacy" and st.online and not pollSeen[name] then
+            st.onlinePending = (st.onlinePending or 0) + 1
+            if st.onlinePending >= 2 then
+                st.online = false
+                st.status = S.OFFLINE
+                st.enteredWorld = false
+                st.hasAI = false
+            else
+                st.status = S.OFFLINE_PENDING
+            end
+        end
+    end
+    if TB.Refresh then TB.Refresh() end
+end
+
+-- ── compatibility roster APIs (never persisted) ────────────────────────────
+function TB.GetRosterNames()
+    local out = {}
+    for name, st in pairs(state) do
+        if displayState(st) then table.insert(out, name) end
+    end
+    table.sort(out)
+    return out
+end
+
+function TB.GetRosterCount()
+    if rosterSnapshotReady then return rosterSnapshotCount end
+    local count = 0
+    for _, st in pairs(state) do
+        if displayState(st) then count = count + 1 end
+    end
+    return count
+end
+
+function TB.AddToRoster(name, opts)
+    -- Legacy callers may still optimistically track a named add, but this is
+    -- never persisted and an offline diagnostic is intentionally undisplayable.
+    name = normalize(name)
+    if not name then return false, "Invalid name." end
+    if not state[name] then
+        state[name] = {
+            name = name, source = "legacy", status = S.OFFLINE, online = false,
+            enteredWorld = false, hasAI = false,
+        }
+    end
+    state[name].discovered = opts and opts.discovered and true or nil
+    legacyState[name] = state[name]
+    return true
+end
+
+function TB.RemoveFromRoster(name)
+    name = normalize(name)
+    if not name then return end
+    local st = state[name]
+    if st and st.source ~= "snapshot" then state[name] = nil end
+    legacyState[name] = nil
+    TB.rosterSelection[name] = nil
+end
+
+-- ── live/diagnostic state ───────────────────────────────────────────────────
+function TB.GetState(name)
+    name = normalize(name)
+    return name and state[name] or nil
+end
+
+function TB.GetAllState()
+    return state
+end
+
+function TB.IsInGroup(name)
+    name = normalize(name)
+    if not name then return false end
+    if groupMembers[name] then return true end
+    if groupKnown then return false end
+    local st = state[name]
+    return st and st.group == true or false
+end
+
+function TB.SetState(name, fields)
+    name = normalize(name)
+    if not name then return end
+    fields = fields or {}
+    if not state[name] then
+        state[name] = { name = name, source = "legacy", status = S.OFFLINE, online = false }
+        legacyState[name] = state[name]
+    end
+    local st = state[name]
+    for key, value in pairs(fields) do st[key] = value end
+    if fields.serverState then
+        st.status, st.online, st.enteredWorld = serverStatus(fields.serverState)
+    elseif fields.online == false then
+        st.enteredWorld = false
+        st.hasAI = false
+        st.random = nil
+    elseif fields.online then
+        if not st.status or st.status == S.OFFLINE then st.status = S.ONLINE end
+        st.enteredWorld = fields.enteredWorld ~= false
+    end
+    if st.source ~= "snapshot" then legacyState[name] = st end
+end
+
+local function operationTimeout(verb)
+    if verb == "add" then return C.ADD_TIMEOUT or 30 end
+    if verb == "remove" or verb == "logout" then return C.REMOVE_TIMEOUT or 15 end
+    if verb == "invite" then return C.INVITE_ACCEPT_TIMEOUT or 20 end
+    return C.ACTION_TIMEOUT or 8
+end
+
+function TB.BeginOperation(name, verb, queued)
+    name = normalize(name)
+    if not name or not verb then return nil end
+    if not state[name] then
+        state[name] = { name = name, source = "legacy", status = S.OFFLINE, online = false }
+        legacyState[name] = state[name]
+    end
+    local st = state[name]
+    local operation = {
+        verb = verb, queued = queued and true or false, startedAt = now(),
+        deadline = now() + operationTimeout(verb),
+    }
+    st.operation = operation
+    st.lastError = nil
+    if verb == "add" then
+        st.online = false; st.enteredWorld = false; st.hasAI = false
+        st.status = queued and S.QUEUED or S.STARTING
+    elseif queued then
+        st.status = S.QUEUED
+    elseif verb == "remove" or verb == "logout" then
+        st.status = S.REMOVING
+    elseif verb == "summon" then
+        st.status = S.SUMMONING
+    elseif verb == "invite" then
+        st.status = S.INVITING
+    elseif verb == "uninvite" then
+        st.status = S.KICKING
+    elseif verb ~= "status" then
+        st.status = S.COMMANDING
+    end
+    return operation
+end
+
+function TB.IsOperationPending(name, verb)
+    local st = TB.GetState(name)
+    return st and st.operation and (not verb or st.operation.verb == verb) or false
+end
+
+function TB.AcknowledgeOperation(name, verb)
+    local st = TB.GetState(name)
+    if not st or not st.operation or (verb and st.operation.verb ~= verb) then return false end
+    st.operation = nil
+    st.lastError = nil
+    return true
+end
+
+function TB.CompleteOperation(name, verb, success, message)
+    local st = TB.GetState(name)
+    if not st or (st.operation and verb and st.operation.verb ~= verb) then return false end
+    if st.operation then st.operation = nil end
+    if success then
+        st.lastError = nil
+        if st.online then st.status = st.enteredWorld and S.ONLINE or S.STARTING
+        else st.status = S.OFFLINE end
+    else
+        st.lastError = message or "Command failed."
+        if (verb == "remove" or verb == "logout") and st.online then st.status = S.ONLINE
+        elseif st.online then st.status = st.enteredWorld and S.ONLINE or S.STARTING
+        else st.status = S.OFFLINE end
+    end
+    if TB.Refresh then TB.Refresh() end
+    return true
+end
+
+function TB.UpdateStateTimers(current)
+    current = current or now()
+    local changed = false
+    local timedOutName
+    for name, st in pairs(state) do
+        if st.summonPendingUntil and current >= st.summonPendingUntil then
+            st.summonPendingUntil = nil
+            if not st.operation and st.online then
+                st.status = st.enteredWorld and S.ONLINE or S.STARTING
+                changed = true
+            end
+        end
+        if st.pendingAI and st.pendingAIUntil and current >= st.pendingAIUntil then
+            st.pendingAI = nil; st.pendingAIUntil = nil; changed = true
+        end
+        local operation = st.operation
+        if operation and current >= operation.deadline then
+            st.operation = nil
+            st.lastError = operation.verb .. " timed out."
+            if operation.verb == "add" then
+                st.online = false; st.enteredWorld = false; st.hasAI = false; st.status = S.FAILED
+            elseif operation.verb == "status" then
+                st.status = S.UNKNOWN
+            elseif operation.verb == "remove" or operation.verb == "logout" then
+                st.status = st.online and S.UNKNOWN or S.OFFLINE
+            elseif st.online then
+                st.status = st.enteredWorld and S.ONLINE or S.STARTING
+            else
+                st.status = S.OFFLINE
+            end
+            timedOutName = timedOutName or name
+            changed = true
+        end
+    end
+    if timedOutName and TB.SetStatus then TB.SetStatus(timedOutName .. ": operation timed out.", "warn") end
+    if changed and TB.Refresh then TB.Refresh() end
+end
+
+function TB.ConfirmSeen(name, info)
+    name = normalize(name)
+    if not name then return end
+    info = info or {}
+    local st = state[name]
+    if not st then
+        if rosterSnapshotReady then return end
+        st = { name = name, source = "legacy" }
+        state[name] = st
+        legacyState[name] = st
+    end
+    st.online = true
+    st.onlinePending = 0
+    st.enteredWorld = info.enteredWorld ~= false
+    st.random = info.random
+    st.hasAI = info.hasAI
+    st.serverState = st.enteredWorld and "online" or "starting"
+    st.status = st.enteredWorld and S.ONLINE or S.STARTING
+    TB.MarkPollSeen(name)
+end
+
+-- Sort keys per row. Roster rows carry no level from the server, so the
+-- status key ranks the row's lifecycle state (online first by default).
+local function rosterStatusRank(st)
+    if not st then return 3 end
+    if st.online then
+        if st.enteredWorld == false then return 1 end
+        return 0
+    end
+    return 2
+end
+
+local function rosterSortValue(row, key)
+    if key == "name" then return string.lower(row.name or "") end
+    if key == "class" then return string.lower(row.className or "") end
+    return rosterStatusRank(row.st)
+end
+
+function TB.SetRosterSort(key)
+    local sort = TB.rosterSort or { key = "status", dir = 1 }
+    if sort.key == key then
+        sort.dir = (sort.dir == 1) and -1 or 1
+    else
+        sort = { key = key, dir = 1 }
+    end
+    TB.rosterSort = sort
+    if TB.Refresh then TB.Refresh() end
+end
+
+function TB.SetGuildSort(key)
+    local sort = TB.guildSort or { key = "level", dir = -1 }
+    if sort.key == key then
+        sort.dir = (sort.dir == 1) and -1 or 1
+    else
+        if key == "level" then sort = { key = key, dir = -1 }
+        else sort = { key = key, dir = 1 } end
+    end
+    TB.guildSort = sort
+    if TB.RefreshGuildView then TB.RefreshGuildView() end
+end
+
+-- ── server-backed roster rows ───────────────────────────────────────────────
+-- Class filter is session-only (like the name search): nil shows every class,
+-- otherwise only rows with that class ID.
+function TB.GetDisplayRows(filter, classFilter)
+    filter = string.lower(filter or "")
+    if classFilter == nil then classFilter = TB.classFilter end
+    local rows = {}
+    for name, st in pairs(state) do
+        if displayState(st) and (filter == "" or string.find(string.lower(name), filter, 1, true))
+            and (classFilter == nil or st.classId == classFilter) then
+            table.insert(rows, {
+                name = name,
+                guid = st.guid,
+                classId = st.classId,
+                className = st.className,
+                state = st.state,
+                serverState = st.serverState,
+                location = st.location,
+                ccMark = st.ccMark,
+                st = st,
+                inGroup = TB.IsInGroup(name),
+            })
+        end
+    end
+    local sort = TB.rosterSort or { key = "status", dir = 1 }
+    -- The sort table is shared UI state: never read it raw, so a stray
+    -- key or direction from another worker's edit cannot break the rows.
+    local key = (sort.key == "name" or sort.key == "class") and sort.key or "status"
+    local dir = (sort.dir == -1) and -1 or 1
+    table.sort(rows, function(a, b)
+        local va, vb = rosterSortValue(a, key), rosterSortValue(b, key)
+        if va ~= vb then
+            if dir == 1 then return va < vb else return va > vb end
+        end
+        return a.name < b.name
+    end)
+    return rows
+end
+
+function TB.GetRosterEntry(name)
+    name = normalize(name)
+    local st = name and state[name] or nil
+    if not st or st.source ~= "snapshot" then return nil end
+    return st
+end
+
+-- CC assignments are server-owned.  ACKs update this cache immediately, while
+-- the optional roster field reconciles it after a poll or reload.
+function TB.SetCcAssignment(name, mark)
+    name = normalize(name)
+    mark = string.lower(TB.Trim(mark or ""))
+    if not name or not (C.CC_MARK_LABELS and C.CC_MARK_LABELS[mark]) then return false end
+    -- One mark = one owner, mirroring the server: assigning a mark here
+    -- evicts it from every other cached owner.
+    for other in pairs(ccAssignments) do
+        if other ~= name and ccAssignments[other] == mark then
+            ccAssignments[other] = nil
+            if state[other] then state[other].ccMark = nil end
+        end
+    end
+    ccAssignments[name] = mark
+    if state[name] then state[name].ccMark = mark end
+    if TB.Refresh then TB.Refresh() end
+    return true
+end
+
+function TB.GetCcAssignment(name)
+    name = normalize(name)
+    local st = name and state[name] or nil
+    if st and st.ccMark then return st.ccMark end
+    return name and ccAssignments[name] or nil
+end
+
+-- Reverse lookup for the Marks panel: which bot currently owns this mark.
+function TB.GetCcOwner(mark)
+    mark = string.lower(TB.Trim(mark or ""))
+    if not (C.CC_MARK_LABELS and C.CC_MARK_LABELS[mark]) then return nil end
+    for name, owned in pairs(ccAssignments) do
+        if owned == mark then return name end
+    end
+    for name, st in pairs(state) do
+        if st and st.ccMark == mark then return name end
+    end
+    return nil
+end
+
+function TB.ClearCcAssignment(name)
+    name = normalize(name)
+    if not name then return false end
+    ccAssignments[name] = nil
+    if state[name] then state[name].ccMark = nil end
+    if TB.Refresh then TB.Refresh() end
+    return true
+end
+
+function TB.ClearAllCcAssignments()
+    clearTable(ccAssignments)
+    for _, st in pairs(state) do
+        if st then st.ccMark = nil end
+    end
+    if TB.Refresh then TB.Refresh() end
+end
+
+-- Online owned party bots, sorted, for the Marks panel owner cycler.
+function TB.GetCcCandidates()
+    local out = {}
+    local playerName = normalize(UnitName and UnitName("player"))
+    for name, st in pairs(state) do
+        if st and st.source == "snapshot" and st.online and name ~= playerName then
+            out[table.getn(out) + 1] = name
+        end
+    end
+    table.sort(out)
+    return out
+end
+
+-- ── checkbox selection and lifecycle eligibility ────────────────────────────
+function TB.ClearRosterSelection()
+    clearTable(TB.rosterSelection)
+    if TB.Refresh then TB.Refresh() end
+end
+
+function TB.IsRosterSelected(name)
+    name = normalize(name)
+    return name and TB.rosterSelection[name] and true or false
+end
+
+function TB.ToggleRosterSelection(name, selected)
+    name = normalize(name)
+    local st = name and state[name] or nil
+    if not st or st.source ~= "snapshot" then return false end
+    if selected == nil then selected = not TB.rosterSelection[name] end
+    if selected then TB.rosterSelection[name] = true else TB.rosterSelection[name] = nil end
+    if TB.Refresh then TB.Refresh() end
+    return selected and true or false
+end
+
+function TB.SelectAllRoster(selectAll)
+    local rows = (TB.GetDisplayRows and TB.GetDisplayRows(TB.filterText or "")) or {}
+    if selectAll == nil then
+        local count = table.getn(rows)
+        local allSelected = count > 0
+        if count == 0 then
+            allSelected = false
+        else
+            for _, row in ipairs(rows) do
+                if not TB.rosterSelection[row.name] then
+                    allSelected = false
+                    break
+                end
+            end
+        end
+        selectAll = not allSelected
+    end
+
+    if not selectAll then
+        for _, row in ipairs(rows) do
+            TB.rosterSelection[row.name] = nil
+        end
+    else
+        for _, row in ipairs(rows) do
+            local st = row.name and state[row.name]
+            if st and st.source == "snapshot" then
+                TB.rosterSelection[row.name] = true
+            end
+        end
+    end
+    if TB.Refresh then TB.Refresh() end
+    return selectAll
+end
+
+function TB.GetSelectedRosterNames()
+    local names = {}
+    for name in pairs(TB.rosterSelection) do
+        local st = state[name]
+        if st and st.source == "snapshot" then table.insert(names, name) end
+    end
+    table.sort(names)
+    return names
+end
+
+local function lifecycleEligible(name, action)
+    local st = state[name]
+    if not st or st.source ~= "snapshot" or st.operation then return false end
+    local live = isControllable(st)
+    local grouped = TB.IsInGroup(name)
+    action = string.lower(TB.Trim(action or ""))
+    -- On an alt-bot, Login (".bot add") takes it back as a companion.
+    if action == "login" or action == "add" then
+        return (not live and st.serverState == "offline") or (live and st.altBot and true or false)
+    end
+    if action == "logout" or action == "remove" then return live end
+    if action == "invite" then return live and not grouped end
+    if action == "kick" or action == "uninvite" then return live and grouped end
+    if action == "summon" then return live end
+    return false
+end
+
+function TB.IsRosterActionEligible(name, action)
+    name = normalize(name)
+    return name and lifecycleEligible(name, action) or false
+end
+
+function TB.GetEligibleRosterNames(action)
+    local names = {}
+    for _, name in ipairs(TB.GetSelectedRosterNames()) do
+        if lifecycleEligible(name, action) then table.insert(names, name) end
+    end
+    return names
+end
+
+-- Fill selectors (P7): invite-eligible names across the current view, capped
+-- so the group never exceeds 5 (party) or 40 (raid).  Selection is ignored:
+-- Fill picks the bots for you.  Wire is unchanged: plain invite batches.
+function TB.GetFillPartyNames()
+    local groupSize = ((GetNumPartyMembers and GetNumPartyMembers()) or 0) + 1
+    local free = 5 - groupSize
+    if free <= 0 then return {} end
+    local out = {}
+    for _, row in ipairs(TB.GetDisplayRows and TB.GetDisplayRows(TB.filterText or "") or {}) do
+        if table.getn(out) >= free then break end
+        if lifecycleEligible(row.name, "invite") then table.insert(out, row.name) end
+    end
+    return out
+end
+
+function TB.GetFillRaidNames()
+    local raidSize = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    local groupSize = raidSize
+    if groupSize == 0 then
+        groupSize = ((GetNumPartyMembers and GetNumPartyMembers()) or 0) + 1
+    end
+    local free = 40 - groupSize
+    if free <= 0 then return {} end
+    local out = {}
+    for _, bot in ipairs(claimedBots) do
+        if table.getn(out) >= free then break end
+        if bot.online and not bot.group then
+            table.insert(out, bot.name)
+        end
+    end
+    return out
+end
+
+-- Friendly aliases for callers that describe the same contextual bottom bar.
+ TB.GetEligibleSelection = TB.GetEligibleRosterNames
+ TB.GetSelectedNames = TB.GetSelectedRosterNames
+
+-- Vanilla 1.12 canonical group events: PARTY_MEMBERS_CHANGED covers party,
+-- RAID_ROSTER_UPDATE covers raid (subgroup shifts, convert to raid).
+-- GROUP_ROSTER_UPDATE is a post-4.0 Retail event that never fires on 1.12;
+-- keep it guarded so modern test shims can still drive the watcher.
+local gf = CreateFrame("Frame", "TortoiseBotsManagerGroupWatcher")
+gf:RegisterEvent("PARTY_MEMBERS_CHANGED")
+gf:RegisterEvent("RAID_ROSTER_UPDATE")
+gf:RegisterEvent("PLAYER_ENTERING_WORLD")
+pcall(function() gf:RegisterEvent("GROUP_ROSTER_UPDATE") end)
+gf:SetScript("OnEvent", function()
+    local members = {}
+    local partyCount = (GetNumPartyMembers and GetNumPartyMembers()) or 0
+    for i = 1, partyCount do
+        local n = UnitName("party" .. i)
+        if n and n ~= "" then members[normalize(n) or n] = true end
+    end
+    local raidCount = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    for i = 1, raidCount do
+        local n = UnitName("raid" .. i)
+        if n and n ~= "" then members[normalize(n) or n] = true end
+    end
+    local selfName = UnitName and UnitName("player") or nil
+    if selfName then members[normalize(selfName) or selfName] = true end
+    clearTable(groupMembers)
+    for key, value in pairs(members) do groupMembers[key] = value end
+    groupKnown = true
+
+    -- Group membership decides whether the core dispatches addon commands, so
+    -- drop the cached transport verdict; the next roster reply re-states it.
+    if TB.InvalidateAddonTransport then TB.InvalidateAddonTransport() end
+
+    for name, st in pairs(state) do
+        if st.source == "snapshot" then st.group = members[name] and true or false end
+        if st.operation and st.operation.verb == "invite" and members[name] then
+            local completed = TB.CompleteOperation(name, "invite", true, "Group invite accepted.")
+            if completed and TB.OnRosterBatchInviteJoined then
+                TB.OnRosterBatchInviteJoined(name)
+            end
+        elseif members[name] and TB.OnRosterBatchInviteJoined then
+            TB.OnRosterBatchInviteJoined(name)
+        elseif st.operation and st.operation.verb == "uninvite" and not members[name] then
+            TB.CompleteOperation(name, "uninvite", true, "Bot left your group.")
+        end
+    end
+    for name, st in pairs(claimedState) do
+        st.group = members[name] and true or false
+    end
+    if TB.RefreshGuildView then TB.RefreshGuildView() end
+    if TB.Refresh then TB.Refresh() end
+end)
+
+-- ── Claimed guild bots model & helpers ───────────────────────────────────────
+-- Parses the trailing `<profs>` field of a TBM:CLAIMED row into
+-- { { skill, value } } ("skillId:value;..." or "-"). Returns nil on
+-- malformed input, never a partial list.
+function TB.ParseClaimedProfs(text)
+    text = TB.Trim(text or "")
+    if text == "" or text == "-" then return {} end
+    local out = {}
+    for pair in string.gfind(text, "([^;]+)") do
+        local at = string.find(pair, ":", 1, true)
+        if not at then return nil end
+        local skill, value = string.sub(pair, 1, at - 1), string.sub(pair, at + 1)
+        if not string.find(skill, "^%d+$") or not string.find(value, "^%d+$") then return nil end
+        table.insert(out, { skill = tonumber(skill), value = tonumber(value) })
+    end
+    if table.getn(out) == 0 then return nil end
+    return out
+end
+
+-- Guild search box also matches profession names ("enchant" leaves only
+-- bots with Enchanting): substring over the row's own profs, like the
+-- name/class match. Needs BotPanel's id->name table; without it only the
+-- cached snapshot can name professions.
+function TB.ClaimedMatchesProfession(bot, filter)
+    if not bot or not bot.profs or table.getn(bot.profs) == 0 then return false end
+    if not TB.ProfessionSkillName then return false end
+    for _, skill in ipairs(bot.profs) do
+        local name = string.lower(TB.ProfessionSkillName(skill.skill) or "")
+        if name ~= "" and string.find(name, filter, 1, true) then return true end
+    end
+    return false
+end
+
+-- Guild row tooltip line from the CLAIMED snapshot: "Enchanting 300,
+-- Tailoring 275". Skill values only (the row carries no max); nil without
+-- row professions.
+function TB.ClaimedProfsLine(bot)
+    if not bot or not bot.profs or table.getn(bot.profs) == 0 then return nil end
+    if not TB.ProfessionSkillName then return nil end
+    local parts = {}
+    for _, skill in ipairs(bot.profs) do
+        table.insert(parts, TB.ProfessionSkillName(skill.skill) .. " " .. tostring(skill.value))
+    end
+    return table.concat(parts, ", ")
+end
+
+local function guildStatusRank(bot)
+    if not bot then return 2 end
+    if bot.online then
+        if bot.group then return 0 end
+        return 1
+    end
+    return 2
+end
+
+local function guildSortValue(bot, key)
+    if key == "name" then return string.lower(bot.name or "") end
+    if key == "level" then return bot.level or 1 end
+    if key == "class" then return string.lower(bot.className or "") end
+    return guildStatusRank(bot)
+end
+
+function TB.GetClaimedBots(filter)
+    local out = {}
+    filter = filter and string.lower(TB.Trim(filter)) or ""
+    for _, bot in ipairs(claimedBots) do
+        if filter == "" or string.find(string.lower(bot.name), filter, 1, true)
+            or string.find(string.lower(bot.className or ""), filter, 1, true)
+            or TB.ClaimedMatchesProfession(bot, filter) then
+            table.insert(out, bot)
+        end
+    end
+    local sort = TB.guildSort or { key = "level", dir = -1 }
+    local key = sort.key
+    if key ~= "name" and key ~= "level" and key ~= "class" then key = "status" end
+    local dir = (sort.dir == -1) and -1 or 1
+    table.sort(out, function(a, b)
+        local va, vb = guildSortValue(a, key), guildSortValue(b, key)
+        if va ~= vb then
+            if dir == 1 then return va < vb else return va > vb end
+        end
+        return (a.name or "") < (b.name or "")
+    end)
+    return out
+end
+
+function TB.GetClaimedEntry(name)
+    name = normalize(name)
+    return name and claimedState[name] or nil
+end
+
+function TB.IsClaimedSelected(name)
+    name = normalize(name)
+    return name and TB.claimedSelection[name] and true or false
+end
+
+function TB.ToggleClaimedSelection(name, selected)
+    name = normalize(name)
+    if not name or not claimedState[name] then return end
+    if selected then
+        TB.claimedSelection[name] = true
+    else
+        TB.claimedSelection[name] = nil
+    end
+    if TB.RefreshGuildView then TB.RefreshGuildView() end
+end
+
+function TB.SelectAllClaimed(selected)
+    clearTable(TB.claimedSelection)
+    if selected then
+        local filter = TB.guildFilterText or ""
+        for _, bot in ipairs(TB.GetClaimedBots(filter)) do
+            TB.claimedSelection[bot.name] = true
+        end
+    end
+    if TB.RefreshGuildView then TB.RefreshGuildView() end
+end
+
+function TB.ClearClaimedSelection()
+    clearTable(TB.claimedSelection)
+    if TB.RefreshGuildView then TB.RefreshGuildView() end
+end
+
+function TB.GetClaimedSelectionCount()
+    local count = 0
+    for name in pairs(TB.claimedSelection) do
+        if claimedState[name] then count = count + 1 end
+    end
+    return count
+end
+
+function TB.GetSelectedClaimedNames()
+    local names = {}
+    for _, bot in ipairs(claimedBots) do
+        if TB.claimedSelection[bot.name] then
+            table.insert(names, bot.name)
+        end
+    end
+    return names
+end
+
+function TB.GetEligibleClaimedNames(action)
+    local out = {}
+    for _, bot in ipairs(claimedBots) do
+        if TB.claimedSelection[bot.name] then
+            if action == "invite" then
+                if bot.online and not bot.group then
+                    table.insert(out, bot.name)
+                end
+            elseif action == "summon" then
+                if bot.online and bot.enteredWorld then
+                    table.insert(out, bot.name)
+                end
+            else
+                table.insert(out, bot.name)
+            end
+        end
+    end
+    return out
+end
+
+function TB.ConfirmReleaseClaimedBot(name)
+    name = normalize(name)
+    if not name then return end
+    if StaticPopupDialogs and StaticPopup_Show then
+        StaticPopupDialogs["TORTOISE_RELEASE_CLAIMED_BOT"] = {
+            text = "Release " .. name .. " back to the wandering bot pool?\n\nThis will remove them from your guild and clear gear protection.",
+            button1 = "Release",
+            button2 = "Cancel",
+            OnAccept = function()
+                TB.ReleaseClaimedBot(name)
+            end,
+            timeout = 0,
+            whileDead = 1,
+            hideOnEscape = 1,
+        }
+        StaticPopup_Show("TORTOISE_RELEASE_CLAIMED_BOT")
+    else
+        TB.ReleaseClaimedBot(name)
+    end
+end
+
+function TB.ReleaseClaimedBot(name)
+    name = normalize(name)
+    if not name then return end
+    if GuildUninvite then
+        GuildUninvite(name)
+    elseif SlashCmdList and SlashCmdList["GUILD_UNINVITE"] then
+        SlashCmdList["GUILD_UNINVITE"](name)
+    else
+        SendChatMessage("/gkick " .. name)
+    end
+    if TB.SetStatus then TB.SetStatus("Released " .. name .. " from guild.", "ok") end
+    if TB.RequestPollSoon then TB.RequestPollSoon(1.0) end
+end
+
