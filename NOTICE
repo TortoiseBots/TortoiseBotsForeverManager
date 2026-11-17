@@ -1,0 +1,38 @@
+TortoiseBotsManagerForever
+==========================
+
+An in-game control panel (/tbm) for TortoiseBots, ported from the Vanilla 1.12
+add-on to the WoW Forever 1.60.1 client (Classic Interface 16001, modern Classic API).
+
+Upstream
+--------
+TortoiseBotsManager v2.4.1
+Copyright (c) 2026 Tortoise WoW Stack contributors
+https://github.com/Sagiroth/TortoiseBotsManager
+Author: Sagiroth
+Licence: MIT (see LICENSE, kept unchanged from upstream)
+
+Server side
+-----------
+TortoiseBots (PlayerBots for Tortoise WoW / WoW Forever)
+https://github.com/Sagiroth/TortoiseBots
+
+Port
+----
+Ported to WoW Forever 1.60.1 in November 2026 by waterys419
+(https://github.com/waterys419). The add-on message protocol is unchanged; only
+the client API underneath was ported (PORT-NOTES.md). PORT-NOTES.md and
+PROTOCOL.md are additions of the port.
+
+Client API reference
+--------------------
+API usage in the Forever client was learned from Karrz's ForeverBots add-on
+(GPL-2.0, Kyzer/repack distribution). No ForeverBots code was copied; the
+Compatibility shim (Compat.lua) and the fake server are original to this port.
+
+Trademarks
+----------
+World of Warcraft and Blizzard Entertainment are trademarks or registered
+trademarks of Blizzard Entertainment, Inc. in the U.S. and/or other countries.
+This add-on is unofficial and not endorsed by or affiliated with Blizzard
+Entertainment. It is not affiliated with Turtle WoW or Sagiroth.

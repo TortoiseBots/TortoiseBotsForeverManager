@@ -101,7 +101,7 @@ function TB.ConsumeVaultReply(name, msg)
         table.insert(v.mail, { n = tonumber(n) or 0, text = msg })
         v.at = now()
         if TB.RefreshVault then TB.RefreshVault() end
-        return table.getn(v.mail)
+        return #v.mail
     end
     if v.header ~= "bank" then return false end
     if string.find(msg, "^#%d+ ") then return false end
@@ -109,12 +109,12 @@ function TB.ConsumeVaultReply(name, msg)
     if not id then return false end
     v.bank = v.bank or {}
     for _, known in ipairs(v.bank) do
-        if known.id == id then return table.getn(v.bank) end
+        if known.id == id then return #v.bank end
     end
     table.insert(v.bank, { id = id, name = label, count = count })
     v.at = now()
     if TB.RefreshVault then TB.RefreshVault() end
-    return table.getn(v.bank)
+    return #v.bank
 end
 function TB.RequestBank(name)
     name = norm(name)
@@ -183,13 +183,13 @@ function TB.GetVaultBot()
 end
 
 local function setTooltip(button, title, lines)
-    button:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    button:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title)
         for _, line in ipairs(lines) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 local function makeTab(parent, label, x, width, view)
@@ -197,7 +197,7 @@ local function makeTab(parent, label, x, width, view)
     b:SetWidth(width); b:SetHeight(20)
     b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -36)
     b:SetText(label)
-    b:SetScript("OnClick", function()
+    b:SetScript("OnClick", function(self, button)
         currentView = view
         page = 1
         TB.RefreshVault()
@@ -206,15 +206,15 @@ local function makeTab(parent, label, x, width, view)
 end
 
 local function createVault()
-    vault = CreateFrame("Frame", "TortoiseBotsManagerBotVault", TB.frame or UIParent)
+    vault = CreateFrame("Frame", "TortoiseBotsManagerBotVault", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     vault:SetWidth(VW); vault:SetHeight(VH)
     vault:SetFrameStrata("DIALOG")
     vault:EnableMouse(true)
     vault:SetMovable(true)
     vault:SetClampedToScreen(true)
     vault:RegisterForDrag("LeftButton")
-    vault:SetScript("OnDragStart", function() vault:StartMoving() end)
-    vault:SetScript("OnDragStop", function()
+    vault:SetScript("OnDragStart", function(self, button) vault:StartMoving() end)
+    vault:SetScript("OnDragStop", function(self)
         vault:StopMovingOrSizing()
         -- 1.12-safe: StopMovingOrSizing detaches the anchor from the
         -- logical parent (see UI.lua drag header), so re-anchor with
@@ -238,7 +238,7 @@ local function createVault()
 
     local close = CreateFrame("Button", nil, vault, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -6)
-    close:SetScript("OnClick", function() TB.CloseVault() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseVault() end)
 
     vault.tabBank = makeTab(vault, "Bank", 10, 68, "bank")
     setTooltip(vault.tabBank, "Bank", { "What this bot keeps in its bank." })
@@ -256,11 +256,11 @@ local function createVault()
         local row = TB.StyleButton(CreateFrame("Button", nil, vault, "UIPanelButtonTemplate"))
         row:SetWidth(VW - 24); row:SetHeight(20)
         row:SetPoint("TOPLEFT", vault, "TOPLEFT", 12, -80 - (i - 1) * 22)
-        row:SetScript("OnClick", function()
+        row:SetScript("OnClick", function(self, button)
             if currentView == "bank" then
-                if currentBot and this.itemId then TB.SendBankWithdraw(currentBot, this.itemId, this.itemName) end
+                if currentBot and self.itemId then TB.SendBankWithdraw(currentBot, self.itemId, self.itemName) end
             else
-                if currentBot and this.mailN then TB.SendMailTake(currentBot, this.mailN) end
+                if currentBot and self.mailN then TB.SendMailTake(currentBot, self.mailN) end
             end
         end)
         table.insert(vault.rows, row)
@@ -270,7 +270,7 @@ local function createVault()
     ask:SetWidth(134); ask:SetHeight(22)
     ask:SetPoint("TOPLEFT", vault, "TOPLEFT", 12, -80 - ROWS * 22)
     ask:SetText("Ask again")
-    ask:SetScript("OnClick", function()
+    ask:SetScript("OnClick", function(self, button)
         if not currentBot then return end
         if currentView == "mail" then TB.RequestMailbox(currentBot) else TB.RequestBank(currentBot) end
     end)
@@ -281,13 +281,13 @@ local function createVault()
     prev:SetWidth(26); prev:SetHeight(22)
     prev:SetPoint("TOPLEFT", vault, "TOPLEFT", 154, -80 - ROWS * 22)
     prev:SetText("<")
-    prev:SetScript("OnClick", function() page = page - 1; TB.RefreshVault() end)
+    prev:SetScript("OnClick", function(self, button) page = page - 1; TB.RefreshVault() end)
     vault.prevPage = prev
     local nextBtn = TB.StyleButton(CreateFrame("Button", nil, vault, "UIPanelButtonTemplate"))
     nextBtn:SetWidth(26); nextBtn:SetHeight(22)
     nextBtn:SetPoint("TOPLEFT", vault, "TOPLEFT", 262, -80 - ROWS * 22)
     nextBtn:SetText(">")
-    nextBtn:SetScript("OnClick", function() page = page + 1; TB.RefreshVault() end)
+    nextBtn:SetScript("OnClick", function(self, button) page = page + 1; TB.RefreshVault() end)
     vault.nextPage = nextBtn
     local pageText = vault:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pageText:SetPoint("TOPLEFT", vault, "TOPLEFT", 182, -84 - ROWS * 22)
@@ -320,7 +320,7 @@ local function renderRows()
     else
         list = (v and v.bank) or {}
     end
-    local pages = math.max(1, math.ceil(table.getn(list) / ROWS))
+    local pages = math.max(1, math.ceil(#list / ROWS))
     if page > pages then page = pages end
     if page < 1 then page = 1 end
     for i, row in ipairs(vault.rows) do
@@ -345,14 +345,14 @@ local function renderRows()
     vault.pageText:SetText(page .. " / " .. pages)
     if page > 1 then vault.prevPage:Enable() else vault.prevPage:Disable() end
     if page < pages then vault.nextPage:Enable() else vault.nextPage:Disable() end
-    if v and v.pending and table.getn(list) == 0 then
+    if v and v.pending and #list == 0 then
         vault.ask:SetText("Asking…")
         vault.ask:Disable()
     else
         vault.ask:SetText("Ask again")
         vault.ask:Enable()
     end
-    if table.getn(list) == 0 then
+    if #list == 0 then
         vault.hint:Hide()
         if v and v.pending then
             vault.empty:SetText("Asking the bot…")
@@ -380,9 +380,9 @@ function TB.RefreshVault()
     local v = vaults[currentBot]
     local list = renderRows()
     if currentView == "mail" then
-        vault.summary:SetText((v and table.getn(list) .. " letter(s)") or "Loading…")
+        vault.summary:SetText((v and #list .. " letter(s)") or "Loading…")
     else
-        vault.summary:SetText((v and table.getn(list) .. " item(s) in bank") or "Loading…")
+        vault.summary:SetText((v and #list .. " item(s) in bank") or "Loading…")
     end
     vault.tabBank:Enable(); vault.tabMail:Enable()
     if currentView == "mail" then vault.tabMail:Disable() else vault.tabBank:Disable() end

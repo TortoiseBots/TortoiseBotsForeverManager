@@ -296,7 +296,7 @@ function TB.OrderMeetState(order)
                 if GetItemInfo then label = GetItemInfo(entry.id) end
                 table.insert(names, label or ("item #" .. tostring(entry.id)))
             end
-            if table.getn(names) == 0 then
+            if #names == 0 then
                 return false, "You carry none of the missing materials"
             end
             return false, "You carry none of the missing materials: " .. table.concat(names, ", ")
@@ -345,12 +345,12 @@ function TB.OrderGoldText(copper)
     copper = math.floor(tonumber(copper) or 0)
     if copper <= 0 then return "0c" end
     local g = math.floor(copper / 10000)
-    local s = math.floor(math.mod(copper, 10000) / 100)
-    local c = math.mod(copper, 100)
+    local s = math.floor(math.fmod(copper, 10000) / 100)
+    local c = math.fmod(copper, 100)
     local parts = {}
     if g > 0 then table.insert(parts, g .. "g") end
     if s > 0 then table.insert(parts, s .. "s") end
-    if c > 0 or table.getn(parts) == 0 then table.insert(parts, c .. "c") end
+    if c > 0 or #parts == 0 then table.insert(parts, c .. "c") end
     return table.concat(parts, " ")
 end
 
@@ -366,7 +366,7 @@ end
 
 -- One hint for the whole need list: "trade, mail or put in guild bank".
 function TB.OrderNeedText(order)
-    if not order or not order.need or table.getn(order.need) == 0 then return nil end
+    if not order or not order.need or #order.need == 0 then return nil end
     local parts = {}
     for _, entry in ipairs(order.need) do
         table.insert(parts, needName(entry.id) .. " x" .. tostring(entry.count or 0))
@@ -382,7 +382,7 @@ end
 local MAIL_BAGS = 5 -- bags 0..4 (backpack plus equipped bags)
 
 local function orderHasNeed(order)
-    return order and order.need and table.getn(order.need) > 0
+    return order and order.need and #order.need > 0
 end
 
 -- First bot in the window's tree (root, then children depth-first) whose
@@ -420,18 +420,18 @@ end
 -- when the stack is larger (a partial attach), else nil (whole stack).
 function TB.FindOrderNeedStack(order)
     if not orderHasNeed(order) then return nil end
-    if not (GetContainerNumSlots and GetContainerItemLink and GetContainerItemInfo) then return nil end
+    if not TB.BagReady() then return nil end
     for _, entry in ipairs(order.need) do
         local needCount = entry.count or 0
         if needCount > 0 then
             for bag = 0, MAIL_BAGS - 1 do
-                local slots = GetContainerNumSlots(bag) or 0
+                local slots = TB.BagSlots(bag) or 0
                 for slot = 1, slots do
-                    local link = GetContainerItemLink(bag, slot)
+                    local link = TB.BagLink(bag, slot)
                     if link then
                         local _, _, idText = string.find(link, "item:(%d+)")
                         if tonumber(idText) == entry.id then
-                            local _, count, locked = GetContainerItemInfo(bag, slot)
+                            local _, count, locked = TB.BagInfo(bag, slot)
                             if not locked and count and count > 0 then
                                 local split = nil
                                 if count > needCount then split = needCount end
@@ -450,8 +450,7 @@ end
 -- itemName, itemTexture, stackCount, quality (MailFrame.lua, build 5803).
 -- Both nil when the slot is empty.
 local function sendMailItem()
-    if not GetSendMailItem then return nil, nil end
-    local name, _, count = GetSendMailItem()
+    local name, count = TB.SendMailItem()
     if name == "" then name = nil end
     return name, tonumber(count)
 end
@@ -462,13 +461,13 @@ end
 local function missingMailApis(split)
     local missing = {}
     if split then
-        if not SplitContainerItem then table.insert(missing, "SplitContainerItem") end
-    elseif not PickupContainerItem then
+        if not TB.HasBagSplit() then table.insert(missing, "SplitContainerItem") end
+    elseif not TB.HasBagPickup() then
         table.insert(missing, "PickupContainerItem")
     end
     if not ClickSendMailItemButton then table.insert(missing, "ClickSendMailItemButton") end
-    if not CursorHasItem then table.insert(missing, "CursorHasItem") end
-    if not GetSendMailItem then table.insert(missing, "GetSendMailItem") end
+    if not TB.HasBagCursor() then table.insert(missing, "CursorHasItem") end
+    if not _G.GetSendMailItem then table.insert(missing, "GetSendMailItem") end
     return missing
 end
 
@@ -495,7 +494,7 @@ function TB.SendOrderMissingItems(rootBot)
     -- A draft the player is already composing is left alone: with an item on
     -- the cursor or in the attachment slot, re-addressing the form would send
     -- that item to the bot. Check before any field changes.
-    if CursorHasItem and CursorHasItem() then
+    if TB.BagCursorHasItem and TB.BagCursorHasItem() then
         TB.SetOrderFeedback("Nothing changed: your cursor holds an item - drop or place it first", "error")
         return false
     end
@@ -526,7 +525,7 @@ function TB.SendOrderMissingItems(rootBot)
     -- No half-blind attach: without the pickup call, the attach click, the
     -- cursor probe and the read-back, nothing is moved at all.
     local missing = missingMailApis(stack.split)
-    if table.getn(missing) > 0 then
+    if #missing > 0 then
         TB.SetOrderFeedback("Nothing attached: this client has no "
             .. table.concat(missing, ", "), "error")
         return true
@@ -534,15 +533,15 @@ function TB.SendOrderMissingItems(rootBot)
     -- The cursor and the attachment slot were checked empty before the form
     -- was touched (top of this function), so the pickup cannot swap anything.
     if stack.split then
-        SplitContainerItem(stack.bag, stack.slot, stack.split)
+        TB.BagSplit(stack.bag, stack.slot, stack.split)
     else
-        PickupContainerItem(stack.bag, stack.slot)
+        TB.BagPickup(stack.bag, stack.slot)
     end
     ClickSendMailItemButton()
     -- The client is the only witness: a wrong item, a wrong count or an
     -- item left on the cursor is an error, never "attached".
     local sentName, sentCount = sendMailItem()
-    if CursorHasItem() or sentName ~= itemName or sentCount ~= attached then
+    if TB.BagCursorHasItem() or sentName ~= itemName or sentCount ~= attached then
         if ClearCursor then ClearCursor() end
         -- The wrong item may now sit in the attachment slot: clear the
         -- recipient so a Send cannot mail it to the bot.
@@ -805,7 +804,7 @@ function TB.OrderRowText(order, short)
         text = item .. " " .. progress .. " · " .. trim(order.state or "")
     end
     if (state == "working" or (state == "waiting" and string.lower(trim(order.reason or "")) ~= "needitems"))
-        and order.need and table.getn(order.need) > 0
+        and order.need and #order.need > 0
         and not string.find(text, "needs items from you", 1, true) then -- a "need" step label already says it
         text = text .. " · " .. "|cffffd200needs items from you|r"
     end
@@ -898,7 +897,7 @@ end
 
 local function splitSources(text)
     local out = {}
-    for token in string.gfind(text or "", "[^,]+") do
+    for token in string.gmatch(text or "", "[^,]+") do
         token = trim(token)
         if token ~= "" then table.insert(out, token) end
     end
@@ -915,14 +914,14 @@ function TB.ParseOrderNeed(text)
     text = trim(text or "")
     if text == "" or text == "-" then return nil end
     local out = {}
-    for pair in string.gfind(text, "[^;]+") do
+    for pair in string.gmatch(text, "[^;]+") do
         local _, _, idText, countText = string.find(trim(pair), "^(%d+):(%d+)$")
         local id = tonumber(idText)
         local count = tonumber(countText)
         if not id or not count or id <= 0 or count <= 0 then return nil end
         table.insert(out, { id = math.floor(id), count = math.floor(count) })
     end
-    if table.getn(out) == 0 then return nil end
+    if #out == 0 then return nil end
     return out
 end
 -- Ticked "I bring it" reagent ids for the craft preview. Resets on pick,
@@ -1006,7 +1005,7 @@ end
 function TB.ParseOrderStepLine(msg)
     if string.sub(msg or "", 1, 15) ~= "TBM:ORDER_STEP|" then return nil end
     local fields = splitProtocol(string.sub(msg, 16))
-    if table.getn(fields) < 6 then return nil end
+    if #fields < 6 then return nil end
     local bot = norm(trim(fields[1]))
     if not bot or bot == "" then return nil end
     local age = tonumber(trim(fields[2]))
@@ -1064,7 +1063,7 @@ function TB.OrderStepAgeText(sec)
     if sec < 3600 then return math.floor(sec / 60) .. "m ago" end
     if sec < 86400 then
         local h = math.floor(sec / 3600)
-        local m = math.floor(math.mod(sec, 3600) / 60)
+        local m = math.floor(math.fmod(sec, 3600) / 60)
         if m == 0 then return h .. "h ago" end
         return h .. "h " .. m .. "m ago"
     end
@@ -1094,7 +1093,7 @@ end
 local function stepsBlockLines(bot)
     if not stepsCapable() then return {} end
     local record = TB.GetOrderSteps(bot)
-    if not record or not record.entries or table.getn(record.entries) == 0 then return {} end
+    if not record or not record.entries or #record.entries == 0 then return {} end
     -- The cache belongs to one order: while the bot holds a different order,
     -- show nothing until that order's own reply lands. With no current order
     -- there is no tooltip anyway, so the stranded list still reads.
@@ -1102,7 +1101,7 @@ local function stepsBlockLines(bot)
     if current and not sameOrderIdentity(TB.OrderStepIdentity(record), TB.OrderStepIdentity(current)) then return {} end
     local lines = { "Steps (newest first):" }
     local entries = record.entries
-    local count = table.getn(entries)
+    local count = #entries
     local shown = 0
     local drift = now() - (record.receivedAt or now())
     for i = count, 1, -1 do
@@ -1135,7 +1134,7 @@ function TB.OrderStepsList(bot)
     local current = orders[norm(bot)]
     if current and not sameOrderIdentity(TB.OrderStepIdentity(record), TB.OrderStepIdentity(current)) then return out end
     local drift = now() - (record.receivedAt or now())
-    for i = table.getn(record.entries), 1, -1 do
+    for i = #record.entries, 1, -1 do
         local entry = record.entries[i]
         table.insert(out, { age = TB.OrderStepAgeText((tonumber(entry.age) or 0) + drift), text = TB.OrderStepText(entry) })
     end
@@ -1160,7 +1159,7 @@ end
 function TB.ParseOrderLine(msg)
     if string.sub(msg or "", 1, 10) ~= "TBM:ORDER|" then return nil end
     local fields = splitProtocol(string.sub(msg, 11))
-    local count = table.getn(fields)
+    local count = #fields
     if count < 9 then return nil end
     local bot = norm(trim(fields[1]))
     if not bot or bot == "" then return nil end
@@ -1222,18 +1221,18 @@ end
 function TB.OrderBagCount(itemId)
     itemId = math.floor(tonumber(itemId) or 0)
     if itemId <= 0 then return 0 end
-    if not (GetContainerNumSlots and GetContainerItemLink and GetContainerItemInfo) then
+    if not (TB.BagSlots and TB.BagLink and TB.BagInfo) then
         return 0
     end
     local total = 0
     for bag = 0, MAIL_BAGS - 1 do
-        local slots = GetContainerNumSlots(bag) or 0
+        local slots = TB.BagSlots(bag) or 0
         for slot = 1, slots do
-            local link = GetContainerItemLink(bag, slot)
+            local link = TB.BagLink(bag, slot)
             if link then
                 local _, _, idText = string.find(link, "item:(%d+)")
                 if tonumber(idText) == itemId then
-                    local _, count, locked = GetContainerItemInfo(bag, slot)
+                    local _, count, locked = TB.BagInfo(bag, slot)
                     if not locked and count and count > 0 then
                         total = total + math.floor(count)
                     end
@@ -1260,7 +1259,7 @@ function TB.OrderBringTicked(bring, itemId)
     return false
 end
 function TB.OrderBringText(bring)
-    if not bring or table.getn(bring) == 0 then return "-" end
+    if not bring or #bring == 0 then return "-" end
     local parts = {}
     for _, id in ipairs(bring) do table.insert(parts, tostring(id)) end
     return table.concat(parts, ",")
@@ -1273,7 +1272,7 @@ end
 function TB.ParseOrderAccess(msg)
     if string.sub(msg or "", 1, 17) ~= "TBM:ORDER_ACCESS|" then return nil end
     local fields = splitProtocol(string.sub(msg, 18))
-    if table.getn(fields) < 6 then return nil end
+    if #fields < 6 then return nil end
     local rankIndex = trim(fields[1])
     if rankIndex == "" then return nil end
     local rankNum = tonumber(rankIndex)
@@ -1284,12 +1283,12 @@ function TB.ParseOrderAccess(msg)
         text = trim(text or "")
         if text == "-" then return nil end
         local out = {}
-        for token in string.gfind(text, "[^,]+") do
+        for token in string.gmatch(text, "[^,]+") do
             local n = tonumber(trim(token))
             if not n or n < 1 then return nil end
             table.insert(out, math.floor(n))
         end
-        if table.getn(out) == 0 then return nil end
+        if #out == 0 then return nil end
         return out
     end
     local ok, denied = tabs(fields[3]), tabs(fields[4])
@@ -1337,7 +1336,7 @@ function TB.OrderAccessText()
 end
 
 function TB.OrderTabList(tabs)
-    if not tabs or table.getn(tabs) == 0 then return "-" end
+    if not tabs or #tabs == 0 then return "-" end
     local parts = {}
     for _, n in ipairs(tabs) do table.insert(parts, tostring(n)) end
     return table.concat(parts, ",")
@@ -1359,7 +1358,7 @@ function TB.GetOrderRankOptions()
             if name and trim(name) ~= "" then names[i - 1] = name end
         end
     end
-    if table.getn(names) == 0 then
+    if #names == 0 then
         for idx = 1, 9 do names[idx] = "Rank " .. idx end
     end
     local out = {}
@@ -1401,7 +1400,7 @@ function TB.ParseOrderWhoBots(text)
     text = trim(text or "")
     if text == "" or text == "-" then return {} end
     local out = {}
-    for token in string.gfind(text, "[^;]+") do
+    for token in string.gmatch(text, "[^;]+") do
         local _, _, name, skillText, haveText, needText, busyText =
             string.find(trim(token), "^([^:]+):(%d+):(%d+):(%d+):(%d+)$")
         local bot = norm(name)
@@ -1414,13 +1413,13 @@ function TB.ParseOrderWhoBots(text)
         table.insert(out, { bot = bot, skill = math.floor(skill),
             have = math.floor(have), need = math.floor(need), busy = busy == 1 })
     end
-    if table.getn(out) == 0 then return nil end
+    if #out == 0 then return nil end
     return out
 end
 function TB.ParseOrderWhoLine(msg)
     if string.sub(msg or "", 1, 14) ~= "TBM:ORDER_WHO|" then return nil end
     local fields = splitProtocol(string.sub(msg, 15))
-    if table.getn(fields) < 7 then return nil end
+    if #fields < 7 then return nil end
     local kind = string.lower(trim(fields[1]))
     if kind ~= "craft" and kind ~= "enchant" then return nil end
     local id = tonumber(trim(fields[2]))
@@ -1447,7 +1446,7 @@ function TB.ParseOrderEnchantReagents(text)
     text = trim(text or "")
     if text == "" or text == "-" then return {} end
     local out = {}
-    for token in string.gfind(text, "[^;]+") do
+    for token in string.gmatch(text, "[^;]+") do
         local _, _, idText, needText, haveText = string.find(trim(token), "^(%d+):(%d+):(%d+)$")
         local id, need, have = tonumber(idText), tonumber(needText), tonumber(haveText)
         if not id or not need or not have or id <= 0 or need <= 0 or have < 0 then
@@ -1455,13 +1454,13 @@ function TB.ParseOrderEnchantReagents(text)
         end
         table.insert(out, { itemId = math.floor(id), need = math.floor(need), have = math.floor(have) })
     end
-    if table.getn(out) == 0 then return nil end
+    if #out == 0 then return nil end
     return out
 end
 function TB.ParseOrderEnchantLine(msg)
     if string.sub(msg or "", 1, 18) ~= "TBM:ORDER_ENCHANT|" then return nil end
     local fields = splitProtocol(string.sub(msg, 19))
-    if table.getn(fields) < 6 then return nil end
+    if #fields < 6 then return nil end
     local spellId = tonumber(trim(fields[1]))
     local name = trim(fields[2])
     local verdict = trim(fields[5])
@@ -1509,7 +1508,7 @@ end
 function TB.ParseOrderItemLine(msg)
     if string.sub(msg or "", 1, 15) ~= "TBM:ORDER_ITEM|" then return nil end
     local fields = splitProtocol(string.sub(msg, 16))
-    local count = table.getn(fields)
+    local count = #fields
     if count < 9 then return nil end
     local itemId = tonumber(trim(fields[1]))
     local item = trim(fields[2])
@@ -1558,7 +1557,7 @@ function TB.ParseOrderPreviewReagent(text)
             break
         end
     end
-    if table.getn(fields) < 11 then return nil end
+    if #fields < 11 then return nil end
     local itemId = tonumber(trim(fields[1]))
     local need = tonumber(trim(fields[2]))
     local bags = tonumber(trim(fields[3]))
@@ -1589,12 +1588,12 @@ function TB.ParseOrderPreviewReagents(text)
     text = trim(text or "")
     if text == "" or text == "-" then return {} end
     local out = {}
-    for token in string.gfind(text, "[^;]+") do
+    for token in string.gmatch(text, "[^;]+") do
         local row = TB.ParseOrderPreviewReagent(trim(token))
         if not row then return nil end
         table.insert(out, row)
     end
-    if table.getn(out) == 0 then return nil end
+    if #out == 0 then return nil end
     return out
 end
 
@@ -1604,18 +1603,18 @@ function TB.ParseOrderBring(text)
     text = trim(text or "")
     if text == "" or text == "-" then return {} end
     local out = {}
-    for token in string.gfind(text, "[^,]+") do
+    for token in string.gmatch(text, "[^,]+") do
         local id = tonumber(trim(token))
         if not id or id <= 0 then return nil end
         table.insert(out, math.floor(id))
     end
-    if table.getn(out) == 0 then return nil end
+    if #out == 0 then return nil end
     return out
 end
 function TB.ParseOrderPreviewLine(msg)
     if string.sub(msg or "", 1, 18) ~= "TBM:ORDER_PREVIEW|" then return nil end
     local fields = splitProtocol(string.sub(msg, 19))
-    local count = table.getn(fields)
+    local count = #fields
     if count < 11 then return nil end
     local bot = norm(trim(fields[1]))
     local kind = trim(fields[2])
@@ -1689,11 +1688,11 @@ function TB.OrderPreviewText(preview)
         if (row.sub or 0) > 0 then table.insert(sub, row.sub .. " " .. name) end
         if (row.player or 0) > 0 then table.insert(player, row.player .. " " .. name) end
     end
-    if table.getn(has) > 0 then table.insert(lines, "Has: " .. table.concat(has, ", ") .. ".") end
-    if table.getn(farm) > 0 then table.insert(lines, "Will farm: " .. table.concat(farm, ", ") .. ".") end
-    if table.getn(ah) > 0 then table.insert(lines, "May buy: " .. table.concat(ah, ", ") .. ".") end
-    if table.getn(sub) > 0 then table.insert(lines, "Asks guild bots: " .. table.concat(sub, ", ") .. ".") end
-    if table.getn(player) > 0 then
+    if #has > 0 then table.insert(lines, "Has: " .. table.concat(has, ", ") .. ".") end
+    if #farm > 0 then table.insert(lines, "Will farm: " .. table.concat(farm, ", ") .. ".") end
+    if #ah > 0 then table.insert(lines, "May buy: " .. table.concat(ah, ", ") .. ".") end
+    if #sub > 0 then table.insert(lines, "Asks guild bots: " .. table.concat(sub, ", ") .. ".") end
+    if #player > 0 then
         table.insert(lines, "You need to send: " .. table.concat(player, ", ") .. ".")
     else
         table.insert(lines, "You need to send: nothing.")
@@ -1782,7 +1781,7 @@ local function parseOrderStepsMessage(msg)
                 stepsPending[bot] = nil
                 stepsAskedAt[bot] = nil
                 if next(stepsPending) == nil then stepsFlightAt = nil end
-            elseif table.getn(stepsReceiving.entries) ~= stepsReceiving.count then
+            elseif #stepsReceiving.entries ~= stepsReceiving.count then
                 -- Short of the BEGIN count: entries were lost, so nothing commits.
                 discardSteps(bot)
             else
@@ -1889,7 +1888,7 @@ function TB.ParseOrderMessage(msg)
             end
             if batch.access then orderAccess = batch.access end
             if TB.SetStatus then
-                TB.SetStatus("Orders updated · " .. table.getn(batch.rows), "ok")
+                TB.SetStatus("Orders updated · " .. #batch.rows, "ok")
             end
             if TB.RefreshGuildView then TB.RefreshGuildView() end
             if TB.RefreshOrderWindow then TB.RefreshOrderWindow() end
@@ -1915,10 +1914,10 @@ function TB.ParseOrderMessage(msg)
             lastSearch = { bot = searchBot, kind = searchKind, text = searchText,
                 cat = searchCat, items = batch.rows }
             if TB.SetStatus then
-                if table.getn(batch.rows) == 0 then
+                if #batch.rows == 0 then
                     TB.SetStatus("No matching enchants.", "muted")
                 else
-                    TB.SetStatus("Order search · " .. table.getn(batch.rows) .. " enchants", "ok")
+                    TB.SetStatus("Order search · " .. #batch.rows .. " enchants", "ok")
                 end
             end
             if TB.RefreshOrderWindow then TB.RefreshOrderWindow() end
@@ -1944,10 +1943,10 @@ function TB.ParseOrderMessage(msg)
             lastSearch = { bot = searchBot, kind = searchKind, text = searchText,
                 cat = searchCat, items = batch.rows }
             if TB.SetStatus then
-                if table.getn(batch.rows) == 0 then
+                if #batch.rows == 0 then
                     TB.SetStatus("No matching items.", "muted")
                 else
-                    TB.SetStatus("Order search · " .. table.getn(batch.rows) .. " items", "ok")
+                    TB.SetStatus("Order search · " .. #batch.rows .. " items", "ok")
                 end
             end
             if TB.RefreshOrderWindow then TB.RefreshOrderWindow() end
@@ -1967,7 +1966,7 @@ function TB.ParseOrderMessage(msg)
     if string.sub(msg, 1, 14) == "TBM:ORDER_WHO|" then
         local entry = TB.ParseOrderWhoLine(msg)
         if whoReceiving and entry and entry.kind == whoReceiving.kind then
-            if table.getn(whoReceiving.rows) < WHO_MAX then
+            if #whoReceiving.rows < WHO_MAX then
                 table.insert(whoReceiving.rows, entry)
             end
         end
@@ -1977,7 +1976,7 @@ function TB.ParseOrderMessage(msg)
         local batch = whoReceiving
         whoReceiving = nil
         if batch then
-            if batch.expected and table.getn(batch.rows) > batch.expected then
+            if batch.expected and #batch.rows > batch.expected then
                 batch.rows = {}
             end
             -- The shown rows follow the BEGIN kind, not the last request: a
@@ -1985,10 +1984,10 @@ function TB.ParseOrderMessage(msg)
             -- answer (never stale rows under a new pill).
             lastWhoSearch = { kind = batch.kind, text = whoText, rows = batch.rows }
             if TB.SetStatus then
-                if table.getn(batch.rows) == 0 then
+                if #batch.rows == 0 then
                     TB.SetStatus("No matching recipes.", "muted")
                 else
-                    TB.SetStatus("Order search · " .. table.getn(batch.rows) .. " recipes", "ok")
+                    TB.SetStatus("Order search · " .. #batch.rows .. " recipes", "ok")
                 end
             end
             if TB.RefreshOrderWindow then TB.RefreshOrderWindow() end
@@ -2013,7 +2012,7 @@ function TB.ParseOrderMessage(msg)
                 and preview.itemId == previewPending.itemId
                 and preview.want == previewPending.amount then
                 orderPreview = preview
-                if preview.bring and table.getn(preview.bring) > 0 then
+                if preview.bring and #preview.bring > 0 then
                     orderBring = {}
                     TB.SetOrderBring(preview.bring)
                 else
@@ -2047,7 +2046,7 @@ function TB.AnnounceOrderReady(bot)
     elseif RaidWarningFrame and RaidWarningFrame.AddMessage then
         RaidWarningFrame:AddMessage(text, 1, 0.82, 0)
     end
-    if PlaySound then PlaySound("ReadyCheck") end
+    TB.PlaySound("ReadyCheck", "READY_CHECK")
     if TB.SetStatus then TB.SetStatus(text, "ok") end
     if TB.RefreshGuildView then TB.RefreshGuildView() end
     if TB.RefreshOrderWindow then TB.RefreshOrderWindow() end
@@ -2291,7 +2290,7 @@ function TB.ConfirmOrderCancel(bot)
         text = "Cancel " .. bot .. "'s order for " .. tostring(order.want or 0)
             .. "x " .. order.item .. "?"
     end
-    if order and table.getn(TB.OrderChildren(bot)) > 0 then
+    if order and #(TB.OrderChildren(bot)) > 0 then
         text = text .. "\n\nThis cancels the whole branch: the sub-orders under it go too."
     end
     text = text .. "\n\nCancelling also ends keep-in-stock and no-limit orders."
@@ -2576,8 +2575,8 @@ TB.GiveWaitTick = giveWaitTick
 local pollFrame
 local function ensurePollFrame()
     if pollFrame then return end
-    pollFrame = CreateFrame("Frame", "TortoiseBotsManagerOrderPoll")
-    pollFrame:SetScript("OnUpdate", function()
+    pollFrame = CreateFrame("Frame", "TortoiseBotsManagerOrderPoll", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    pollFrame:SetScript("OnUpdate", function(self, elapsed)
         TB.OrderPollTick()
         meetRepaintTick()
         giveWaitTick()
@@ -2586,7 +2585,7 @@ local function ensurePollFrame()
     -- opens or closes so the button enables/disables itself (D2).
     pollFrame:RegisterEvent("MAIL_SHOW")
     pollFrame:RegisterEvent("MAIL_CLOSED")
-    pollFrame:SetScript("OnEvent", function()
+    pollFrame:SetScript("OnEvent", function(self, event, ...)
         if TB.RefreshOrderWindow then TB.RefreshOrderWindow() end
     end)
 end
@@ -2947,18 +2946,18 @@ function TB.OrderEnchantDetail(row)
         name = name or ("item #" .. tostring(reagent.itemId))
         table.insert(reagents, name .. " " .. tostring(reagent.have or 0) .. "/" .. tostring(reagent.need or 0))
     end
-    if table.getn(reagents) > 0 then table.insert(parts, table.concat(reagents, ", ")) end
+    if #reagents > 0 then table.insert(parts, table.concat(reagents, ", ")) end
     return table.concat(parts, " · ")
 end
 
 local function setTooltip(button, title, lines)
-    button:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    button:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title)
         for _, line in ipairs(lines) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 local function smallButton(parent, label, width, x, y, tipTitle, tip, onClick)
@@ -3028,7 +3027,7 @@ end
 -- without the global DropDownList frames.
 -- The order window's timer: typing-pause searches, previews, and a redraw
 -- once uncached items arrive. Kept out of createWindow (32-upvalue limit).
-local function onOrderWindowUpdate()
+local function onOrderWindowUpdate(self, elapsed)
     firePendingSearch()
     firePendingPreview()
     -- Uncached items re-render once the client has them.
@@ -3060,7 +3059,7 @@ local function createOrderLimits(pane)
     minus:SetWidth(24); minus:SetHeight(22)
     minus:SetPoint("TOPLEFT", pane, "TOPLEFT", 70, -(base + 2))
     minus:SetText("-")
-    minus:SetScript("OnClick", function()
+    minus:SetScript("OnClick", function(self, button)
         if IsShiftKeyDown and IsShiftKeyDown() then
             TB.SetOrderAmount(orderAmount - 10)
         else
@@ -3074,24 +3073,24 @@ local function createOrderLimits(pane)
     amountBox:SetWidth(52); amountBox:SetHeight(20)
     amountBox:SetPoint("TOPLEFT", pane, "TOPLEFT", 98, -(base + 2))
     amountBox:SetAutoFocus(false)
-    amountBox:SetScript("OnEscapePressed", function()
-        this:SetText(tostring(orderAmount))
-        this:ClearFocus()
+    amountBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(tostring(orderAmount))
+        self:ClearFocus()
     end)
-    amountBox:SetScript("OnEnterPressed", function()
-        TB.SetOrderAmount(tonumber(this:GetText()) or orderAmount)
-        this:ClearFocus()
+    amountBox:SetScript("OnEnterPressed", function(self)
+        TB.SetOrderAmount(tonumber(self:GetText()) or orderAmount)
+        self:ClearFocus()
     end)
     -- Commit while typing and on focus loss, so Send always uses the
     -- shown number and the estimates follow without pressing Enter.
     -- Non-numeric text is left alone until Escape or a valid edit. The
     -- SetText below re-fires OnTextChanged, hence the differs guard.
-    amountBox:SetScript("OnTextChanged", function()
-        local n = tonumber(this:GetText() or "")
+    amountBox:SetScript("OnTextChanged", function(self, userInput)
+        local n = tonumber(self:GetText() or "")
         if n and TB.ClampOrderAmount(n) ~= orderAmount then TB.SetOrderAmount(n) end
     end)
-    amountBox:SetScript("OnEditFocusLost", function()
-        this:SetText(tostring(orderAmount))
+    amountBox:SetScript("OnEditFocusLost", function(self)
+        self:SetText(tostring(orderAmount))
     end)
     win.amountBox = amountBox
 
@@ -3099,7 +3098,7 @@ local function createOrderLimits(pane)
     plus:SetWidth(24); plus:SetHeight(22)
     plus:SetPoint("TOPLEFT", pane, "TOPLEFT", 154, -(base + 2))
     plus:SetText("+")
-    plus:SetScript("OnClick", function()
+    plus:SetScript("OnClick", function(self, button)
         if IsShiftKeyDown and IsShiftKeyDown() then
             TB.SetOrderAmount(orderAmount + 10)
         else
@@ -3118,20 +3117,20 @@ local function createOrderLimits(pane)
     hoursBox:SetWidth(36); hoursBox:SetHeight(20)
     hoursBox:SetPoint("TOPLEFT", pane, "TOPLEFT", 268, -(base + 2))
     hoursBox:SetAutoFocus(false)
-    hoursBox:SetScript("OnEscapePressed", function()
-        this:SetText(tostring(orderHours))
-        this:ClearFocus()
+    hoursBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(tostring(orderHours))
+        self:ClearFocus()
     end)
-    hoursBox:SetScript("OnEnterPressed", function()
-        TB.SetOrderHours(tonumber(this:GetText()) or orderHours)
-        this:ClearFocus()
+    hoursBox:SetScript("OnEnterPressed", function(self)
+        TB.SetOrderHours(tonumber(self:GetText()) or orderHours)
+        self:ClearFocus()
     end)
-    hoursBox:SetScript("OnTextChanged", function()
-        local n = tonumber(this:GetText() or "")
+    hoursBox:SetScript("OnTextChanged", function(self, userInput)
+        local n = tonumber(self:GetText() or "")
         if n and TB.ClampOrderHours(n) ~= orderHours then TB.SetOrderHours(n) end
     end)
-    hoursBox:SetScript("OnEditFocusLost", function()
-        this:SetText(tostring(orderHours))
+    hoursBox:SetScript("OnEditFocusLost", function(self)
+        self:SetText(tostring(orderHours))
     end)
     win.hoursBox = hoursBox
     setTooltip(hoursBox, "Farm time",
@@ -3141,8 +3140,8 @@ local function createOrderLimits(pane)
     TB.StyleCheckButton(keepBox)
     keepBox:SetWidth(20); keepBox:SetHeight(20)
     keepBox:SetPoint("TOPLEFT", pane, "TOPLEFT", 12, -(base + 22))
-    keepBox:SetScript("OnClick", function()
-        TB.SetOrderKeep(this:GetChecked() and true or false)
+    keepBox:SetScript("OnClick", function(self, button)
+        TB.SetOrderKeep(self:GetChecked() and true or false)
     end)
     win.keepBox = keepBox
     setTooltip(keepBox, "Keep in stock",
@@ -3166,18 +3165,18 @@ local function createOrderLimits(pane)
     goldBox:SetWidth(100); goldBox:SetHeight(20)
     goldBox:SetPoint("TOPLEFT", pane, "TOPLEFT", 168, -(base + 44))
     goldBox:SetAutoFocus(false)
-    goldBox:SetScript("OnEscapePressed", function()
-        this:SetText(orderGold ~= nil and tostring(orderGold) or "")
-        this:ClearFocus()
+    goldBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(orderGold ~= nil and tostring(orderGold) or "")
+        self:ClearFocus()
     end)
-    goldBox:SetScript("OnEnterPressed", function()
-        local text = trim(this:GetText() or "")
+    goldBox:SetScript("OnEnterPressed", function(self)
+        local text = trim(self:GetText() or "")
         if text == "" then TB.SetOrderGold(nil)
         else TB.SetOrderGold(tonumber(text)) end
-        this:ClearFocus()
+        self:ClearFocus()
     end)
-    goldBox:SetScript("OnTextChanged", function()
-        local text = trim(this:GetText() or "")
+    goldBox:SetScript("OnTextChanged", function(self, userInput)
+        local text = trim(self:GetText() or "")
         if text == "" then
             if orderGold ~= nil then TB.SetOrderGold(nil) end
         else
@@ -3185,8 +3184,8 @@ local function createOrderLimits(pane)
             if g ~= nil and TB.ClampOrderGold(g) ~= orderGold then TB.SetOrderGold(g) end
         end
     end)
-    goldBox:SetScript("OnEditFocusLost", function()
-        this:SetText(orderGold ~= nil and tostring(orderGold) or "")
+    goldBox:SetScript("OnEditFocusLost", function(self)
+        self:SetText(orderGold ~= nil and tostring(orderGold) or "")
     end)
     win.goldBox = goldBox
     setTooltip(goldBox, "Max guild gold",
@@ -3195,8 +3194,8 @@ local function createOrderLimits(pane)
     TB.StyleCheckButton(noLimitBox)
     noLimitBox:SetWidth(20); noLimitBox:SetHeight(20)
     noLimitBox:SetPoint("TOPLEFT", pane, "TOPLEFT", 194, -(base + 22))
-    noLimitBox:SetScript("OnClick", function()
-        TB.SetOrderNoLimit(this:GetChecked() and true or false)
+    noLimitBox:SetScript("OnClick", function(self, button)
+        TB.SetOrderNoLimit(self:GetChecked() and true or false)
     end)
     win.noLimitBox = noLimitBox
     setTooltip(noLimitBox, "No time limit",
@@ -3219,11 +3218,11 @@ local function createOrderStepOne(pane)
     search:SetWidth(OW - 24); search:SetHeight(20)
     search:SetPoint("TOPLEFT", pane, "TOPLEFT", 12, -66)
     search:SetAutoFocus(false)
-    search:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    search:SetScript("OnEnterPressed", function()
+    search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    search:SetScript("OnEnterPressed", function(self)
         searchPendingAt = nil
-        this:ClearFocus()
-        local text = trim(this:GetText() or "")
+        self:ClearFocus()
+        local text = trim(self:GetText() or "")
         if orderGuild then
             if string.len(text) >= SEARCH_MIN then
                 TB.SendOrderWhoSearch(lastWhoSearch.kind, text)
@@ -3246,7 +3245,7 @@ local function createOrderStepOne(pane)
             end
         end
     end)
-    search:SetScript("OnTextChanged", function() armSearch() end)
+    search:SetScript("OnTextChanged", function(self, userInput) armSearch() end)
     win.searchBox = search
 
     local kinds = { { "Farm", "farm" }, { "Buy", "buy" }, { "Craft", "craft" }, { "Enchant", "enchant" } }
@@ -3264,7 +3263,7 @@ local function createOrderStepOne(pane)
         pill:SetPoint("TOPLEFT", pane, "TOPLEFT", kindX, -90)
         kindX = kindX + kindWidths[i] + 4
         local kind = entry[2]
-        pill:SetScript("OnClick", function()
+        pill:SetScript("OnClick", function(self, button)
             if orderGuild and (kind == "craft" or kind == "enchant") then
                 TB.SetGuildOrderKind(kind)
             else
@@ -3280,10 +3279,10 @@ local function createOrderStepOne(pane)
             tipTitle = ORDER_CAT_LABEL[cat],
             tip = "Only show this kind of item.",
         })
-        pill:SetPoint("TOPLEFT", pane, "TOPLEFT", 12 + math.mod(i - 1, 4) * 80,
+        pill:SetPoint("TOPLEFT", pane, "TOPLEFT", 12 + math.fmod(i - 1, 4) * 80,
             -116 - math.floor((i - 1) / 4) * 22)
         local token = cat
-        pill:SetScript("OnClick", function() TB.SetOrderCat(token) end)
+        pill:SetScript("OnClick", function(self, button) TB.SetOrderCat(token) end)
         win.catPills[cat] = pill
     end
 
@@ -3291,14 +3290,14 @@ local function createOrderStepOne(pane)
     results:SetPoint("TOPLEFT", pane, "TOPLEFT", 12, -152)
     results:SetWidth(OW - 24)
     results:SetHeight(RESULT_ROW_N * RESULT_ROW_H + 4)
-    results:SetScript("OnVerticalScroll", function()
+    results:SetScript("OnVerticalScroll", function(self, offset)
         FauxScrollFrame_OnVerticalScroll(RESULT_ROW_H, TB.RefreshOrderWindow)
     end)
     win.results = results
 
     win.resultRows = {}
     for i = 1, RESULT_ROW_N do
-        local row = CreateFrame("Button", nil, pane)
+        local row = CreateFrame("Button", nil, pane, BackdropTemplateMixin and "BackdropTemplate" or nil)
         row:SetWidth(OW - 24 - 18)
         row:SetHeight(RESULT_ROW_H - 2)
         row:SetPoint("TOPLEFT", results, "TOPLEFT", 0, -(i - 1) * RESULT_ROW_H)
@@ -3320,8 +3319,8 @@ local function createOrderStepOne(pane)
         row.detail:SetPoint("LEFT", row, "LEFT", 38, -8)
         row.detail:SetWidth(OW - 24 - 18 - 44)
         row.detail:SetJustifyH("LEFT")
-        row:SetScript("OnClick", function()
-            local item = this.item
+        row:SetScript("OnClick", function(self, button)
+            local item = self.item
             if not item then return end
             if string.lower(trim(item.verdict or "")) ~= "ok" then
                 TB.SetOrderFeedback("This bot can't get it: "
@@ -3331,10 +3330,10 @@ local function createOrderStepOne(pane)
             TB.SetOrderFeedback(nil)
             TB.SetOrderSelection(item.itemId)
         end)
-        row:SetScript("OnEnter", function()
-            local item = this.item
+        row:SetScript("OnEnter", function(self, motion)
+            local item = self.item
             if not item then return end
-            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if GetItemInfo and GetItemInfo(item.itemId) and GameTooltip.SetHyperlink then
                 GameTooltip:SetHyperlink("item:" .. item.itemId .. ":0:0:0")
             else
@@ -3355,7 +3354,7 @@ local function createOrderStepOne(pane)
             end
             GameTooltip:Show()
         end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         table.insert(win.resultRows, row)
     end
     -- Pick-a-bot clicks: one small button per knowing bot lives inside the
@@ -3367,8 +3366,8 @@ local function createOrderStepOne(pane)
         local b = TB.StyleButton(CreateFrame("Button", nil, pane, "UIPanelButtonTemplate"))
         b:SetWidth(52); b:SetHeight(14)
         b:SetText("")
-        b:SetScript("OnClick", function()
-            local entry, bot = this.whoEntry, this.whoBot
+        b:SetScript("OnClick", function(self, button)
+            local entry, bot = self.whoEntry, self.whoBot
             if entry and bot then TB.PickGuildOrderBot(entry, bot) end
         end)
         b:Hide()
@@ -3425,8 +3424,8 @@ local function createOrderStepThree(pane, base)
         TB.StyleCheckButton(box)
         box:SetWidth(16); box:SetHeight(16)
         box:SetPoint("TOPLEFT", pane, "TOPLEFT", 12, -(base + 106 + (i - 1) * 15))
-        box:SetScript("OnClick", function()
-            local id = this.bringId
+        box:SetScript("OnClick", function(self, button)
+            local id = self.bringId
             if id then TB.ToggleOrderBringNow(id) end
         end)
         box:Hide()
@@ -3567,15 +3566,15 @@ function TB.SendOrderFromStepThree()
 end
 
 local function createWindow()
-    win = CreateFrame("Frame", "TortoiseBotsManagerOrderWindow", TB.frame or UIParent)
+    win = CreateFrame("Frame", "TortoiseBotsManagerOrderWindow", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win:SetWidth(OW); win:SetHeight(510 + 178)
     win:SetFrameStrata("DIALOG")
     win:EnableMouse(true)
     win:SetMovable(true)
     win:SetClampedToScreen(true)
     win:RegisterForDrag("LeftButton")
-    win:SetScript("OnDragStart", function() win:StartMoving() end)
-    win:SetScript("OnDragStop", function()
+    win:SetScript("OnDragStart", function(self, button) win:StartMoving() end)
+    win:SetScript("OnDragStop", function(self)
         win:StopMovingOrSizing()
         -- 1.12-safe: re-anchor with GetLeft/GetTop, never GetPoint().
         local left, top = win:GetLeft(), win:GetTop()
@@ -3596,7 +3595,7 @@ local function createWindow()
 
     local close = CreateFrame("Button", nil, win, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -6)
-    close:SetScript("OnClick", function() TB.CloseOrderWindow() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseOrderWindow() end)
     win.closeBtn = close
 
     local head = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -3617,11 +3616,11 @@ local function createWindow()
     win.wipNote:SetText("Work in progress, there may be bugs")
     TB.SetTextColor(win.wipNote, { 1, 0.82, 0, 1 })
 
-    win.stepOne = CreateFrame("Frame", nil, win)
+    win.stepOne = CreateFrame("Frame", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win.stepOne:SetPoint("TOPLEFT", win, "TOPLEFT", 0, 0)
     win.stepOne:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", 0, 0)
     createOrderStepOne(win.stepOne)
-    win.stepTwo = CreateFrame("Frame", nil, win)
+    win.stepTwo = CreateFrame("Frame", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
     -- The limits are laid out below the step-1 results area; lift the pane
     -- so they sit right under the step label and the window can stay short.
     win.stepTwo:SetPoint("TOPLEFT", win, "TOPLEFT", 0, 368)
@@ -3635,7 +3634,7 @@ local function createWindow()
     -- Live orders and sub-orders: every row names its bot and step, indented
     -- under its parent, updating as TBM:ORDER lines land. Step 3: context
     -- for the Send button, not a step-1 search control.
-    win.stepThree = CreateFrame("Frame", nil, win)
+    win.stepThree = CreateFrame("Frame", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
     -- Same lift as step 2: its content starts below the step-1 results area.
     win.stepThree:SetPoint("TOPLEFT", win, "TOPLEFT", 0, 304)
     win.stepThree:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", 0, 0)
@@ -3739,7 +3738,7 @@ local function setPillUsable(pill, usable, why)
         pill.tooltipExtra = nil
     else
         pill:Disable()
-        pill.tooltipExtra = function() return why end
+        pill.tooltipExtra = function(self) return why end
     end
 end
 
@@ -3788,7 +3787,7 @@ function TB.RefreshOrderWindow()
         else
             if pill.SetActive then pill:SetActive(cat == (orderCat or "all")) end
             pill:ClearAllPoints()
-            pill:SetPoint("TOPLEFT", pill:GetParent(), "TOPLEFT", 12 + math.mod(slot, 4) * 80,
+            pill:SetPoint("TOPLEFT", pill:GetParent(), "TOPLEFT", 12 + math.fmod(slot, 4) * 80,
                 -116 - math.floor(slot / 4) * 22)
             pill:Show()
             slot = slot + 1
@@ -3806,7 +3805,7 @@ function TB.RefreshGuildOrderRows()
     local search = TB.GetOrderWhoSearch()
     local rows = {}
     if search.kind == lastWhoSearch.kind then rows = search.rows or {} end
-    local total = table.getn(rows)
+    local total = #rows
     FauxScrollFrame_Update(win.results, total, RESULT_ROW_N, RESULT_ROW_H)
     local offset = (FauxScrollFrame_GetOffset and FauxScrollFrame_GetOffset(win.results)) or 0
     local used = 0
@@ -3826,8 +3825,8 @@ function TB.RefreshGuildOrderRows()
             row.name:SetTextColor(1, 1, 1)
             local bots = entry.bots or {}
             local extra = 0
-            if table.getn(bots) > 3 then extra = table.getn(bots) - 3 end
-            if table.getn(bots) == 0 then
+            if #bots > 3 then extra = #bots - 3 end
+            if #bots == 0 then
                 row.detail:SetText("no guild bot knows it")
             else
                 local line = TB.OrderWhoBotText({ bots = bots })
@@ -3860,7 +3859,7 @@ function TB.RefreshGuildOrderRows()
         end
     end
     if win.botBtns then
-        for i = used + 1, table.getn(win.botBtns) do win.botBtns[i]:Hide() end
+        for i = used + 1, #win.botBtns do win.botBtns[i]:Hide() end
     end
     if win.emptyMsg then
         if total == 0 then
@@ -3888,7 +3887,7 @@ function TB.RefreshPerBotOrderRows()
         and (search.cat or nil) == (orderCat or nil) then
         items = search.items or {}
     end
-    local total = table.getn(items)
+    local total = #items
     FauxScrollFrame_Update(win.results, total, RESULT_ROW_N, RESULT_ROW_H)
     local offset = (FauxScrollFrame_GetOffset and FauxScrollFrame_GetOffset(win.results)) or 0
     local level = botLevel()
@@ -3902,7 +3901,7 @@ function TB.RefreshPerBotOrderRows()
             if item.itemId == selectedItemId then foundSelected = true end
             local cant = string.lower(trim(item.verdict or "")) ~= "ok"
             if orderKind == "enchant" then
-                row.icon:SetTexture("Interface\Icons\INV_Misc_QuestionMark")
+                row.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
             else
                 row.icon:SetTexture(itemTexture(item.itemId))
             end
@@ -4015,8 +4014,8 @@ function TB.RefreshOrderChrome(order)
         local canSend, mailReason = TB.CanSendOrderItems(windowBot)
         if canSend and not orderGuild then win.sendItemsBtn:Enable() else win.sendItemsBtn:Disable() end
         -- The tooltip names the bot and its need, or why the button is dead.
-        win.sendItemsBtn:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        win.sendItemsBtn:SetScript("OnEnter", function(self, motion)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText("Send missing items")
             if canSend then
                 local bot, needOrder = TB.OrderNeedTarget(windowBot)
@@ -4027,7 +4026,7 @@ function TB.RefreshOrderChrome(order)
             end
             GameTooltip:Show()
         end)
-        win.sendItemsBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        win.sendItemsBtn:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
     end
     local isEnchantKind = orderKind == "enchant"
     if win.amountBox then
@@ -4377,12 +4376,12 @@ function TB.BuildOrderRankMenu(addButton)
                 func = function() TB.ConfirmOrderRank(option.index, option.name) end })
         end
     end
-    return table.getn(options)
+    return #options
 end
 
 function TB.OpenOrderRankMenu(owner)
     if not UIDropDownMenu_Initialize or not ToggleDropDownMenu then return false end
-    if table.getn(TB.GetOrderRankOptions()) == 0 then return false end
+    if #(TB.GetOrderRankOptions()) == 0 then return false end
     if not TB._orderRankMenu then
         TB._orderRankMenu = CreateFrame("Frame", "TortoiseBotsManagerOrderRankMenu",
             UIParent, "UIDropDownMenuTemplate")
@@ -4407,14 +4406,14 @@ function TB.BuildOrderReassignMenu(subBot, addButton)
         addButton({ text = name, notCheckable = 1,
             func = function() TB.ConfirmOrderReassign(subBot, name) end })
     end
-    return table.getn(names)
+    return #names
 end
 
 function TB.OpenOrderReassignMenu(subBot, owner)
     subBot = norm(subBot)
     if not subBot then return false end
     if not UIDropDownMenu_Initialize or not ToggleDropDownMenu then return false end
-    if table.getn(TB.GetOrderReassignCandidates(subBot)) == 0 then
+    if #(TB.GetOrderReassignCandidates(subBot)) == 0 then
         TB.SetOrderFeedback("No other guild bots to hand it to.", "warn")
         return false
     end

@@ -1,3 +1,22 @@
+# TortoiseBotsManagerForever
+
+The TortoiseBots Manager ported to **WoW Forever 1.60.1** (Classic Interface 16001).
+
+- Install: copy the `TortoiseBotsManagerForever` folder into
+  `World of Warcraft\_forever_\Interface\AddOns\`, then `/tbm` in game. A TortoiseBots
+  Forever **server module** is required; this add-on alone only draws the interface.
+- Protocol: unchanged from TortoiseBotsManager 2.4.1 — see **PROTOCOL.md**.
+- What changed in the port (modern C_ChatInfo/C_Container/event API): **PORT-NOTES.md**.
+- Offline testing without a server: **`/tbmf fake`** (fake server, canned roster, guild
+  bot, inventory, professions, order) and **`/tbmf on`** (message trace). `/tbmf status`
+  shows both.
+- Checks: `lua5.1 tests/regression.lua .`, `sh tests/ui_smoke.sh .`,
+  `lua5.1 tests/lint.lua .`, and luacheck with the shipped `.luacheckrc`.
+
+The upstream README follows.
+
+---
+
 # TortoiseBots Manager
 
 [![Latest release](https://img.shields.io/github/v/release/Sagiroth/TortoiseBotsManager?label=release&logo=github)](https://github.com/Sagiroth/TortoiseBotsManager/releases/latest)

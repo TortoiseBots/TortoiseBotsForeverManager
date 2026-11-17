@@ -283,12 +283,12 @@ function TB.ConsumeSpellReply(name, msg)
     if not id then return false end
     entry.spells = entry.spells or {}
     for _, known in ipairs(entry.spells) do
-        if known.id == id then return table.getn(entry.spells) end
+        if known.id == id then return #entry.spells end
     end
     table.insert(entry.spells, { id = id, name = label })
     entry.at = now()
     if TB.RefreshBotPanel then TB.RefreshBotPanel() end
-    return table.getn(entry.spells)
+    return #entry.spells
 end
 
 function TB.RequestSpells(name)
@@ -391,7 +391,7 @@ function TB.ParseServiceLine(msg)
             break
         end
     end
-    if table.getn(fields) < 5 then return nil end
+    if #fields < 5 then return nil end
     local name = norm(fields[1])
     if not name or name == "" then return nil end
     for i = 2, 4 do
@@ -412,7 +412,7 @@ function TB.ParseServiceLine(msg)
             if not comma then break end
             pos = comma + 1
         end
-        if table.getn(portals) == 0 then return nil end
+        if #portals == 0 then return nil end
     end
     return {
         name = name,
@@ -452,14 +452,14 @@ function TB.BuildServicePortalMenu(name, addButton)
                 end
             end })
     end
-    return table.getn(options)
+    return #options
 end
 
 function TB.OpenServicePortalMenu(name)
     name = norm(name)
     if not name then return false end
     if not UIDropDownMenu_Initialize or not ToggleDropDownMenu then return false end
-    if table.getn(TB.GetServicePortalOptions(name)) == 0 then return false end
+    if #(TB.GetServicePortalOptions(name)) == 0 then return false end
     if not TB._servicePortalMenu then
         TB._servicePortalMenu = CreateFrame("Frame", "TortoiseBotsManagerServicePortalMenu",
             UIParent, "UIDropDownMenuTemplate")
@@ -502,7 +502,7 @@ function TB.ParseProfessionRecipeLine(msg)
             break
         end
     end
-    local count = table.getn(fields)
+    local count = #fields
     if count < 7 then return nil end
     for i = 1, 7 do
         if not fields[i] or not string.find(fields[i], "^%d+$") then return nil end
@@ -580,7 +580,7 @@ end
 -- only (no recipe counts); nil without a cached reply.
 function TB.ProfessionTooltipLine(name)
     local snapshot = TB.GetProfessions and TB.GetProfessions(name) or nil
-    if not snapshot or not snapshot.skills or table.getn(snapshot.skills) == 0 then return nil end
+    if not snapshot or not snapshot.skills or #snapshot.skills == 0 then return nil end
     local parts = {}
     for _, skill in ipairs(snapshot.skills) do
         table.insert(parts, TB.ProfessionSkillName(skill.skill)
@@ -664,7 +664,7 @@ local function bagSlotCount(id, serverSlots)
         scanTip:SetOwner(UIParent, "ANCHOR_NONE")
         scanTip:SetHyperlink("item:" .. id .. ":0:0:0")
         for i = 1, 5 do
-            local fs = getglobal("TortoiseBotsManagerScanTipTextLeft" .. i)
+            local fs = _G["TortoiseBotsManagerScanTipTextLeft" .. i]
             local text = fs and fs.GetText and fs:GetText()
             if text then
                 local _, _, n = string.find(text, "(%d+)%s+[Ss]lot")
@@ -680,19 +680,19 @@ end
 
 function TB.FindPlayerBags()
     local list = {}
-    if not (GetContainerNumSlots and GetContainerItemLink and GetItemInfo) then return list end
+    if not (TB.BagSlots and TB.BagLink and GetItemInfo) then return list end
     for bag = 0, 4 do
-        local slots = GetContainerNumSlots(bag) or 0
+        local slots = TB.BagSlots(bag) or 0
         for slot = 1, slots do
-            local link = GetContainerItemLink(bag, slot)
+            local link = TB.BagLink(bag, slot)
             if link then
                 local _, _, idText = string.find(link, "item:(%d+)")
                 local id = idText and tonumber(idText) or nil
                 if id and isBagItem(id) then
                     local name, _, quality, _, _, _, _, _, texture = GetItemInfo(id)
                     local locked = false
-                    if GetContainerItemInfo then
-                        local _, _, isLocked = GetContainerItemInfo(bag, slot)
+                    if TB.BagInfo then
+                        local _, _, isLocked = TB.BagInfo(bag, slot)
                         locked = isLocked and true or false
                     end
                     table.insert(list, {
@@ -724,8 +724,8 @@ end
 local function formatMoney(copper)
     copper = tonumber(copper) or 0
     local g = math.floor(copper / 10000)
-    local s = math.floor(math.mod(copper, 10000) / 100)
-    local c = math.mod(copper, 100)
+    local s = math.floor(math.fmod(copper, 10000) / 100)
+    local c = math.fmod(copper, 100)
     local text = ""
     if g > 0 then text = text .. "|cffffd700" .. g .. "g|r " end
     if g > 0 or s > 0 then text = text .. "|cffc7c7cf" .. s .. "s|r " end
@@ -737,14 +737,14 @@ TB.FormatMoney = formatMoney
 local function botUnit(name)
     name = norm(name)
     if not name or not UnitName then return nil end
-    local raid = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    local raid = TB.RaidCount()
     if raid > 0 then
         for i = 1, raid do
             local unit = "raid" .. i
             if norm(UnitName(unit)) == name then return unit end
         end
     end
-    local party = (GetNumPartyMembers and GetNumPartyMembers()) or 0
+    local party = TB.PartyCount()
     for i = 1, party do
         local unit = "party" .. i
         if norm(UnitName(unit)) == name then return unit end
@@ -834,13 +834,13 @@ local function equipOptionsForItem(id, botName)
 end
 
 local function setTooltip(button, title, lines)
-    button:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:SetText(this._tipTitle or title)
-        for _, line in ipairs(this._tipLines or lines or {}) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
+    button:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(self._tipTitle or title)
+        for _, line in ipairs(self._tipLines or lines or {}) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 -- ── panel state ─────────────────────────────────────────────────────────────
@@ -875,11 +875,11 @@ function TB.SendItemOrder(op, bag, slot, targetSlot)
 end
 
 local function placePlayerItemInTrade(bag, slot)
-    if not (PickupContainerItem and ClickTradeButton) then return false end
-    if CursorHasItem and CursorHasItem() then return false end
-    PickupContainerItem(bag, slot)
+    if not (TB.BagPickup and ClickTradeButton) then return false end
+    if TB.BagCursorHasItem and TB.BagCursorHasItem() then return false end
+    TB.BagPickup(bag, slot)
     ClickTradeButton(1)
-    if CursorHasItem and CursorHasItem() then
+    if TB.BagCursorHasItem and TB.BagCursorHasItem() then
         if ClearCursor then ClearCursor() end
         return false
     end
@@ -920,7 +920,7 @@ function TB.BuildBagSlotMenu(name, slotId, addButton)
     local count = 0
     addButton({ text = "Give a bag", isTitle = 1, notCheckable = 1 })
     local playerBags = TB.FindPlayerBags()
-    if table.getn(playerBags) == 0 then
+    if #playerBags == 0 then
         addButton({ text = "No bags in your inventory", disabled = 1, notCheckable = 1 })
     else
         for _, item in ipairs(playerBags) do
@@ -937,7 +937,7 @@ function TB.BuildBagSlotMenu(name, slotId, addButton)
 
     addButton({ text = "Equip this bag", isTitle = 1, notCheckable = 1 })
     local carriedBags = TB.FindBotCarriedBags(name)
-    if table.getn(carriedBags) == 0 then
+    if #carriedBags == 0 then
         addButton({ text = "No bags in bot's inventory", disabled = 1, notCheckable = 1 })
     else
         for _, item in ipairs(carriedBags) do
@@ -1129,7 +1129,7 @@ local function hideMenu()
 end
 
 local function createItemButton(parent)
-    local b = CreateFrame("Button", nil, parent)
+    local b = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     b:SetWidth(SLOT); b:SetHeight(SLOT)
     b:EnableMouse(true)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -1148,9 +1148,9 @@ local function createItemButton(parent)
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(b)
     hl:SetTexture(1, 1, 1, 0.15)
-    b:SetScript("OnEnter", function()
-        local entry = this.entry
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    b:SetScript("OnEnter", function(self, motion)
+        local entry = self.entry
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if entry and entry.id then
             if GameTooltip.SetHyperlink then
                 GameTooltip:SetHyperlink("item:" .. entry.id .. ":0:0:0")
@@ -1168,14 +1168,14 @@ local function createItemButton(parent)
             end
             GameTooltip:AddLine("Shift-click: link in chat", 0.62, 0.60, 0.56)
         else
-            GameTooltip:SetText(this.slotLabel or "Empty")
+            GameTooltip:SetText(self.slotLabel or "Empty")
             GameTooltip:AddLine("Nothing equipped", 0.62, 0.60, 0.56)
         end
         GameTooltip:Show()
     end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    b:SetScript("OnClick", function()
-        local entry = this.entry
+    b:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    b:SetScript("OnClick", function(self, button)
+        local entry = self.entry
         if not entry or not entry.id then return end
         if IsShiftKeyDown and IsShiftKeyDown() then
             local link = chatLink(entry.id)
@@ -1184,8 +1184,8 @@ local function createItemButton(parent)
             end
             return
         end
-        if itemMenu.owner == this and itemMenu:IsVisible() then hideMenu() return end
-        itemMenu:Open(this, entry)
+        if itemMenu.owner == self and itemMenu:IsVisible() then hideMenu() return end
+        itemMenu:Open(self, entry)
     end)
     return b
 end
@@ -1224,7 +1224,7 @@ local function paintItemButton(b, entry, emptyTexture)
 end
 
 local function createEquippedBagButton(parent, slotId, index)
-    local b = CreateFrame("Button", nil, parent)
+    local b = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     b:SetWidth(150); b:SetHeight(28)
     b:EnableMouse(true)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -1248,9 +1248,9 @@ local function createEquippedBagButton(parent, slotId, index)
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(b)
     hl:SetTexture(1, 1, 1, 0.12)
-    b:SetScript("OnEnter", function()
-        local entry = this.entry
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    b:SetScript("OnEnter", function(self, motion)
+        local entry = self.entry
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if entry and entry.id then
             if GameTooltip.SetHyperlink then
                 GameTooltip:SetHyperlink("item:" .. entry.id .. ":0:0:0")
@@ -1262,15 +1262,15 @@ local function createEquippedBagButton(parent, slotId, index)
             GameTooltip:AddLine("Click: give a bag or equip from bot's bags", 0.62, 0.60, 0.56)
             GameTooltip:AddLine("Shift-click: link in chat", 0.62, 0.60, 0.56)
         else
-            GameTooltip:SetText(this.slotLabel or "Bag slot")
+            GameTooltip:SetText(self.slotLabel or "Bag slot")
             GameTooltip:AddLine("Empty or not reported by server", 0.62, 0.60, 0.56)
             GameTooltip:AddLine("Click: give a bag or equip from bot's bags", 0.62, 0.60, 0.56)
         end
         GameTooltip:Show()
     end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    b:SetScript("OnClick", function()
-        local entry = this.entry
+    b:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    b:SetScript("OnClick", function(self, button)
+        local entry = self.entry
         if entry and entry.id and IsShiftKeyDown and IsShiftKeyDown() then
             local link = chatLink(entry.id)
             if link and ChatFrameEditBox and ChatFrameEditBox.IsVisible and ChatFrameEditBox:IsVisible() then
@@ -1280,14 +1280,14 @@ local function createEquippedBagButton(parent, slotId, index)
         end
         if currentBot then
             hideMenu()
-            TB.OpenBagSlotMenu(this, currentBot, this.slotId)
+            TB.OpenBagSlotMenu(self, currentBot, self.slotId)
         end
     end)
     return b
 end
 
 local function createMenu(parent)
-    local menu = CreateFrame("Frame", "TortoiseBotsManagerItemMenu", parent)
+    local menu = CreateFrame("Frame", "TortoiseBotsManagerItemMenu", parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     menu:SetWidth(128); menu:SetHeight(178)
     menu:SetFrameStrata("TOOLTIP")
     menu:EnableMouse(true)
@@ -1312,10 +1312,10 @@ local function createMenu(parent)
     -- A panel-sized catcher closes the menu on a click outside it. It is a
     -- plain panel child (no global mouse hook), shown only with the menu, so
     -- other addons never see it.
-    menu.catcher = CreateFrame("Button", nil, parent)
+    menu.catcher = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     menu.catcher:SetAllPoints(parent)
     menu.catcher:EnableMouse(true)
-    menu.catcher:SetScript("OnClick", function() hideMenu() end)
+    menu.catcher:SetScript("OnClick", function(self, button) hideMenu() end)
     local function setButtonPos(btn, y)
         btn:ClearAllPoints()
         btn:SetPoint("TOPLEFT", menu, "TOPLEFT", 6, y)
@@ -1404,42 +1404,42 @@ local function createMenu(parent)
         self.catcher:Show()
         self:Show()
     end
-    menu.first:SetScript("OnClick", function()
+    menu.first:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then TB.SendItemOrder(menu.first.op, entry.bag, entry.slot, menu.first.targetSlot) end
     end)
-    menu.firstB:SetScript("OnClick", function()
+    menu.firstB:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then TB.SendItemOrder(menu.firstB.op, entry.bag, entry.slot, menu.firstB.targetSlot) end
     end)
-    menu.second:SetScript("OnClick", function()
+    menu.second:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then TB.SendItemOrder("give", entry.bag, entry.slot) end
     end)
-    menu.third:SetScript("OnClick", function()
+    menu.third:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then TB.SendItemUse(entry.id) end
     end)
-    menu.fourth:SetScript("OnClick", function()
+    menu.fourth:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then sendLinkOrder("cast Disenchant", entry.id) end
     end)
-    menu.fifth:SetScript("OnClick", function()
+    menu.fifth:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then sendLinkOrder("sendmail", entry.id) end
     end)
-    menu.sixth:SetScript("OnClick", function()
+    menu.sixth:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then sendLinkOrder("bank", entry.id) end
     end)
-    menu.seventh:SetScript("OnClick", function()
+    menu.seventh:SetScript("OnClick", function(self, button)
         local entry = menu.entry
         hideMenu()
         if entry then TB.ConfirmDestroyItem(entry.id) end
@@ -1454,7 +1454,7 @@ local function makeTab(parent, label, x, width, view)
     b:SetWidth(width); b:SetHeight(20)
     b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -46)
     b:SetText(label)
-    b:SetScript("OnClick", function()
+    b:SetScript("OnClick", function(self, button)
         currentView = view
         hideMenu()
         TB.RefreshBotPanel()
@@ -1463,7 +1463,7 @@ local function makeTab(parent, label, x, width, view)
 end
 
 local function createPanel()
-    panel = CreateFrame("Frame", "TortoiseBotsManagerBotPanel", TB.frame or UIParent)
+    panel = CreateFrame("Frame", "TortoiseBotsManagerBotPanel", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     panel:SetWidth(PW); panel:SetHeight(PH)
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -1491,7 +1491,7 @@ local function createPanel()
 
     local close = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -7)
-    close:SetScript("OnClick", function() TB.CloseBotPanel() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseBotPanel() end)
 
     panel.tabGear = makeTab(panel, "Gear", 10, 58, "gear")
     panel.tabBags = makeTab(panel, "Bags", 72, 58, "bags")
@@ -1505,10 +1505,10 @@ local function createPanel()
     setTooltip(panel.tabProfs, "Professions", { "Trade skills, recipes and what the bot could still learn.", "Asks the server once; Refresh asks again." })
 
     -- Gear view: paper doll around the bot's 3D model.
-    local gear = CreateFrame("Frame", nil, panel)
+    local gear = CreateFrame("Frame", nil, panel, BackdropTemplateMixin and "BackdropTemplate" or nil)
     gear:SetAllPoints(panel)
     panel.gear = gear
-    local model = CreateFrame("PlayerModel", nil, gear)
+    local model = CreateFrame("PlayerModel", nil, gear, BackdropTemplateMixin and "BackdropTemplate" or nil)
     model:SetPoint("TOPLEFT", panel, "TOPLEFT", 52, -74)
     model:SetWidth(PW - 104); model:SetHeight(262)
     panel.model = model
@@ -1540,7 +1540,7 @@ local function createPanel()
     end
 
     -- Bags view: occupied slots only, paged.
-    local bags = CreateFrame("Frame", nil, panel)
+    local bags = CreateFrame("Frame", nil, panel, BackdropTemplateMixin and "BackdropTemplate" or nil)
     bags:SetAllPoints(panel)
     panel.bags = bags
     local bagSummary = bags:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1553,14 +1553,14 @@ local function createPanel()
     sweep:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -72)
     sweep:SetText("Equip upgrades")
     setTooltip(sweep, "Equip upgrades (new loot)", { "The bot scans its bags and equips everything better.", "Footer → Auto-gear does a full re-gear from bags instead." })
-    sweep:SetScript("OnClick", function()
+    sweep:SetScript("OnClick", function(self, button)
         if currentBot then TB.SendBotCommand("command " .. currentBot .. " d equip upgrades") end
     end)
     panel.sweepButton = sweep
     panel.equippedBagButtons = {}
     for i, slotId in ipairs(EQUIPPED_BAG_SLOTS) do
         local b = createEquippedBagButton(bags, slotId, i)
-        local col = math.mod(i - 1, 2)
+        local col = math.fmod(i - 1, 2)
         local row = math.floor((i - 1) / 2)
         b:SetPoint("TOPLEFT", panel, "TOPLEFT", 12 + col * 156, -96 - row * 32)
         table.insert(panel.equippedBagButtons, b)
@@ -1578,12 +1578,12 @@ local function createPanel()
     prev:SetWidth(26); prev:SetHeight(20)
     prev:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -366)
     prev:SetText("<")
-    prev:SetScript("OnClick", function() bagPage = bagPage - 1; hideMenu(); TB.RefreshBotPanel() end)
+    prev:SetScript("OnClick", function(self, button) bagPage = bagPage - 1; hideMenu(); TB.RefreshBotPanel() end)
     local nextBtn = TB.StyleButton(CreateFrame("Button", nil, bags, "UIPanelButtonTemplate"))
     nextBtn:SetWidth(26); nextBtn:SetHeight(20)
     nextBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 100, -366)
     nextBtn:SetText(">")
-    nextBtn:SetScript("OnClick", function() bagPage = bagPage + 1; hideMenu(); TB.RefreshBotPanel() end)
+    nextBtn:SetScript("OnClick", function(self, button) bagPage = bagPage + 1; hideMenu(); TB.RefreshBotPanel() end)
     local pageText = bags:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pageText:SetPoint("TOPLEFT", panel, "TOPLEFT", 40, -370)
     pageText:SetWidth(58); pageText:SetJustifyH("CENTER")
@@ -1595,7 +1595,7 @@ local function createPanel()
     TB.SetTextColor(legend, color("muted"))
 
     -- Behaviour view: two columns of toggle chips.
-    local behavior = CreateFrame("Frame", nil, panel)
+    local behavior = CreateFrame("Frame", nil, panel, BackdropTemplateMixin and "BackdropTemplate" or nil)
     behavior:SetAllPoints(panel)
     panel.behavior = behavior
     local bhTitle = behavior:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1610,19 +1610,19 @@ local function createPanel()
         chip.lamp = chip:CreateTexture(nil, "OVERLAY")
         chip.lamp:SetWidth(8); chip.lamp:SetHeight(8)
         chip.lamp:SetPoint("RIGHT", chip, "RIGHT", -8, 0)
-        chip:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-            GameTooltip:SetText(this.def.label)
-            GameTooltip:AddLine(this.def.tip, 0.9, 0.9, 0.9, 1)
-            local stateWord = this.state == "on" and "On"
-                or (this.state == "off" and "Off" or "Not yet known")
+        chip:SetScript("OnEnter", function(self, motion)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.def.label)
+            GameTooltip:AddLine(self.def.tip, 0.9, 0.9, 0.9, 1)
+            local stateWord = self.state == "on" and "On"
+                or (self.state == "off" and "Off" or "Not yet known")
             GameTooltip:AddLine("State: " .. stateWord, 0.9, 0.9, 0.9, 1)
             GameTooltip:AddLine("Click to switch on/off.", 0.9, 0.9, 0.9, 1)
             GameTooltip:Show()
         end)
-        chip:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        chip:SetScript("OnClick", function()
-            if currentBot then TB.SendBehavior(currentBot, this.def.key) end
+        chip:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+        chip:SetScript("OnClick", function(self, button)
+            if currentBot then TB.SendBehavior(currentBot, self.def.key) end
         end)
         panel.behaviorChips[def.key] = chip
     end
@@ -1637,7 +1637,7 @@ local function createPanel()
     if TB.CreateFocusBlock then TB.CreateFocusBlock(panel, behavior) end
 
     -- Spells view: the bot's spellbook, one row per known spell.
-    local spellsView = CreateFrame("Frame", nil, panel)
+    local spellsView = CreateFrame("Frame", nil, panel, BackdropTemplateMixin and "BackdropTemplate" or nil)
     spellsView:SetAllPoints(panel)
     panel.spells = spellsView
     local spTitle = spellsView:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1652,8 +1652,8 @@ local function createPanel()
         row.spellId = 0
         row.spellName = nil
         setTooltip(row, "Spell", { "Click: ask the bot to cast it." })
-        row:SetScript("OnClick", function()
-            if currentBot and this.spellName then TB.SendBotCast(currentBot, this.spellName) end
+        row:SetScript("OnClick", function(self, button)
+            if currentBot and self.spellName then TB.SendBotCast(currentBot, self.spellName) end
         end)
         table.insert(panel.spellRows, row)
     end
@@ -1669,7 +1669,7 @@ local function createPanel()
     ask:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -366)
     ask:SetText("Ask for spellbook")
     setTooltip(ask, "Ask for spellbook", { "Lists what this bot can cast.", "Click a row to cast it." })
-    ask:SetScript("OnClick", function()
+    ask:SetScript("OnClick", function(self, button)
         if currentBot then TB.RequestSpells(currentBot) end
     end)
     panel.spellAsk = ask
@@ -1677,7 +1677,7 @@ local function createPanel()
     prev:SetWidth(26); prev:SetHeight(20)
     prev:SetPoint("LEFT", ask, "RIGHT", 6, 0)
     prev:SetText("<")
-    prev:SetScript("OnClick", function() spellPage = spellPage - 1; TB.RefreshBotPanel() end)
+    prev:SetScript("OnClick", function(self, button) spellPage = spellPage - 1; TB.RefreshBotPanel() end)
     panel.spellPrev = prev
     local pageText = spellsView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pageText:SetPoint("LEFT", prev, "RIGHT", 2, 0)
@@ -1687,7 +1687,7 @@ local function createPanel()
     nextBtn:SetWidth(26); nextBtn:SetHeight(20)
     nextBtn:SetPoint("LEFT", pageText, "RIGHT", 2, 0)
     nextBtn:SetText(">")
-    nextBtn:SetScript("OnClick", function() spellPage = spellPage + 1; TB.RefreshBotPanel() end)
+    nextBtn:SetScript("OnClick", function(self, button) spellPage = spellPage + 1; TB.RefreshBotPanel() end)
     panel.spellNext = nextBtn
 
     -- Professions view: skills with value/max, known recipes under each,
@@ -1695,7 +1695,7 @@ local function createPanel()
     -- filters both. Footer Refresh re-asks the server; the view itself
     -- asks once when it has no cache yet.
     local PROF_ROWS = 9
-    local profsView = CreateFrame("Frame", nil, panel)
+    local profsView = CreateFrame("Frame", nil, panel, BackdropTemplateMixin and "BackdropTemplate" or nil)
     profsView:SetAllPoints(panel)
     panel.profs = profsView
     local profTitle = profsView:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1707,16 +1707,16 @@ local function createPanel()
     search:SetWidth(PW - 24); search:SetHeight(20)
     search:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -96)
     search:SetAutoFocus(false)
-    search:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    search:SetScript("OnTextChanged", function()
-        profSearch = TB.Trim(this:GetText() or "")
+    search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    search:SetScript("OnTextChanged", function(self, userInput)
+        profSearch = TB.Trim(self:GetText() or "")
         profPage = 1
         TB.RefreshBotPanel()
     end)
     panel.profSearch = search
     panel.profRows = {}
     for i = 1, PROF_ROWS do
-        local row = CreateFrame("Button", nil, profsView)
+        local row = CreateFrame("Button", nil, profsView, BackdropTemplateMixin and "BackdropTemplate" or nil)
         row:SetWidth(PW - 24); row:SetHeight(20)
         row:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -120 - (i - 1) * 22)
         row:EnableMouse(true)
@@ -1731,21 +1731,21 @@ local function createPanel()
         row.craft:SetWidth(44); row.craft:SetHeight(16)
         row.craft:SetPoint("RIGHT", row, "RIGHT", 0, 0)
         row.craft:SetText("Craft")
-        row:SetScript("OnClick", function()
-            if this.group and this.groupSkill then
-                profCollapsed[this.groupSkill] = not profCollapsed[this.groupSkill]
+        row:SetScript("OnClick", function(self, button)
+            if self.group and self.groupSkill then
+                profCollapsed[self.groupSkill] = not profCollapsed[self.groupSkill]
                 TB.RefreshBotPanel()
             end
         end)
-        row.craft:SetScript("OnClick", function()
-            local recipe = this:GetParent().recipe
+        row.craft:SetScript("OnClick", function(self, button)
+            local recipe = self:GetParent().recipe
             if recipe and currentBot and TB.PrefillCraftOrder then
                 TB.PrefillCraftOrder(currentBot, recipe)
             end
         end)
-        row.craft:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-            local recipe = this:GetParent().recipe
+        row.craft:SetScript("OnEnter", function(self, motion)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            local recipe = self:GetParent().recipe
             if recipe and not TB.ProfessionRecipeOrderable(recipe) then
                 GameTooltip:SetText(TB.ProfessionRecipeOrderReason(recipe) or "Cannot order")
             else
@@ -1754,7 +1754,7 @@ local function createPanel()
             end
             GameTooltip:Show()
         end)
-        row.craft:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row.craft:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         table.insert(panel.profRows, row)
     end
     local profEmpty = profsView:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1768,7 +1768,7 @@ local function createPanel()
     profAsk:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -366)
     profAsk:SetText("Refresh professions")
     setTooltip(profAsk, "Refresh professions", { "Asks the bot for its skills and recipes again." })
-    profAsk:SetScript("OnClick", function()
+    profAsk:SetScript("OnClick", function(self, button)
         if currentBot then TB.RequestProfessions(currentBot) end
     end)
     panel.profAsk = profAsk
@@ -1776,7 +1776,7 @@ local function createPanel()
     profPrev:SetWidth(26); profPrev:SetHeight(20)
     profPrev:SetPoint("LEFT", profAsk, "RIGHT", 6, 0)
     profPrev:SetText("<")
-    profPrev:SetScript("OnClick", function() profPage = profPage - 1; TB.RefreshBotPanel() end)
+    profPrev:SetScript("OnClick", function(self, button) profPage = profPage - 1; TB.RefreshBotPanel() end)
     panel.profPrev = profPrev
     local profPageText = profsView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     profPageText:SetPoint("LEFT", profPrev, "RIGHT", 2, 0)
@@ -1786,7 +1786,7 @@ local function createPanel()
     profNext:SetWidth(26); profNext:SetHeight(20)
     profNext:SetPoint("LEFT", profPageText, "RIGHT", 2, 0)
     profNext:SetText(">")
-    profNext:SetScript("OnClick", function() profPage = profPage + 1; TB.RefreshBotPanel() end)
+    profNext:SetScript("OnClick", function(self, button) profPage = profPage + 1; TB.RefreshBotPanel() end)
     panel.profNext = profNext
     -- Service row: conjured goods for mages and warlocks, above the footer.
     local food = TB.StyleButton(CreateFrame("Button", nil, panel, "UIPanelButtonTemplate"))
@@ -1797,7 +1797,7 @@ local function createPanel()
         "The bot opens a trade with conjured food and water in it.",
         "Accept the trade to take it.",
     })
-    food:SetScript("OnClick", function() TB.SendItemOrder("trade") end)
+    food:SetScript("OnClick", function(self, button) TB.SendItemOrder("trade") end)
     panel.foodButton = food
 
     local stone = TB.StyleButton(CreateFrame("Button", nil, panel, "UIPanelButtonTemplate"))
@@ -1809,7 +1809,7 @@ local function createPanel()
         "The bot opens a trade with a healthstone in it.",
         "Accept the trade to take it.",
     })
-    stone:SetScript("OnClick", function() TB.SendItemOrder("trade") end)
+    stone:SetScript("OnClick", function(self, button) TB.SendItemOrder("trade") end)
     panel.healthstoneButton = stone
 
     local portal = TB.StyleButton(CreateFrame("Button", nil, panel, "UIPanelButtonTemplate"))
@@ -1819,7 +1819,7 @@ local function createPanel()
     setTooltip(portal, "Portal", {
         "The bot opens a portal. Pick where it goes.",
     })
-    portal:SetScript("OnClick", function()
+    portal:SetScript("OnClick", function(self, button)
         if currentBot then TB.OpenServicePortalMenu(currentBot) end
     end)
     panel.portalButton = portal
@@ -1833,7 +1833,7 @@ local function createPanel()
         "Put your items or gold in and accept - the bot accepts on its own.",
         "To take an item from the bot, click it in Bags → Give to me.",
     })
-    trade:SetScript("OnClick", function() TB.SendItemOrder("trade") end)
+    trade:SetScript("OnClick", function(self, button) TB.SendItemOrder("trade") end)
     panel.tradeButton = trade
 
     local refresh = TB.StyleButton(CreateFrame("Button", nil, panel, "UIPanelButtonTemplate"))
@@ -1841,7 +1841,7 @@ local function createPanel()
     refresh:SetPoint("LEFT", trade, "RIGHT", 3, 0)
     refresh:SetText("Refresh")
     setTooltip(refresh, "Refresh", { "Reload gear, bags, behaviour, totems, conjured goods and professions from the server." })
-    refresh:SetScript("OnClick", function()
+    refresh:SetScript("OnClick", function(self, button)
         if currentBot then TB.RequestInventory(currentBot) end
         if currentBot then TB.RequestProfessions(currentBot) end
         if currentBot and TB.ServiceWanted(currentBot) then TB.RequestService(currentBot) end
@@ -1856,7 +1856,7 @@ local function createPanel()
     npcLink:SetPoint("LEFT", refresh, "RIGHT", 3, 0)
     npcLink:SetText("NPC")
     setTooltip(npcLink, "NPC errands", { "Talk, bind, learn and flights for this bot." })
-    npcLink:SetScript("OnClick", function()
+    npcLink:SetScript("OnClick", function(self, button)
         if currentBot and TB.OpenNpc then TB.OpenNpc(currentBot) end
     end)
     panel.npcButton = npcLink
@@ -1866,7 +1866,7 @@ local function createPanel()
     vaultLink:SetPoint("LEFT", npcLink, "RIGHT", 3, 0)
     vaultLink:SetText("Bank")
     setTooltip(vaultLink, "Bank and mail", { "Lists what this bot keeps in its bank and mailbox." })
-    vaultLink:SetScript("OnClick", function()
+    vaultLink:SetScript("OnClick", function(self, button)
         if currentBot and TB.OpenVault then TB.OpenVault(currentBot) end
     end)
     panel.vaultButton = vaultLink
@@ -1876,7 +1876,7 @@ local function createPanel()
     upkeep:SetPoint("LEFT", vaultLink, "RIGHT", 3, 0)
     upkeep:SetText("Upkeep")
     setTooltip(upkeep, "Upkeep", { "Restock this bot: food, drink, reagents, ammo and repairs.", "Only while the bot is online." })
-    upkeep:SetScript("OnClick", function()
+    upkeep:SetScript("OnClick", function(self, button)
         if currentBot then TB.SendBotCommand("maintenance " .. currentBot) end
         if TB.PollList then TB.PollList(true) end
     end)
@@ -1887,7 +1887,7 @@ local function createPanel()
     gearup:SetPoint("LEFT", upkeep, "RIGHT", 3, 0)
     gearup:SetText("AutoGear")
     setTooltip(gearup, "Auto-gear (bags)", { "The bot equips the best gear it already owns in its bags.", "Bags → Equip upgrades re-scans and equips new loot instead.", "Only while the bot is online." })
-    gearup:SetScript("OnClick", function()
+    gearup:SetScript("OnClick", function(self, button)
         if currentBot then TB.SendBotCommand("autogear " .. currentBot) end
         if currentBot then TB.RequestInventory(currentBot) end
     end)
@@ -1904,7 +1904,7 @@ local function createPanel()
 
     -- Uncached items re-render once the client has them; a pending link
     -- order retries then, so the first click sends once cached.
-    panel:SetScript("OnUpdate", function()
+    panel:SetScript("OnUpdate", function(self, elapsed)
         if uncachedAt and now() - uncachedAt > 1 then
             uncachedAt = nil
             TB.RefreshBotPanel()
@@ -1954,7 +1954,7 @@ local function renderHeader(inv)
     if move then table.insert(parts, move) end
     panel.subText:SetText(table.concat(parts, " · "))
     panel.moneyText:SetText(inv and formatMoney(inv.money) or "")
-    local bagCount = inv and table.getn(inv.items) or 0
+    local bagCount = inv and #inv.items or 0
     panel.tabBags:SetText(inv and ("Bags (" .. bagCount .. ")") or "Bags")
 end
 
@@ -1966,7 +1966,7 @@ local function renderService()
     local online = TB.GetBotState(currentBot) ~= nil or botUnit(currentBot) ~= nil
     local showFood = classId == 8 and snapshot and (snapshot.food or snapshot.water)
     local showStone = classId == 9 and snapshot and snapshot.healthstone
-    local showPortal = classId == 8 and snapshot and table.getn(snapshot.portals or {}) > 0
+    local showPortal = classId == 8 and snapshot and #(snapshot.portals or {}) > 0
     if panel.foodButton then
         if showFood then panel.foodButton:Show() else panel.foodButton:Hide() end
         if online then panel.foodButton:Enable() else panel.foodButton:Disable() end
@@ -2046,7 +2046,7 @@ local function renderBags(inv)
     end
     local items = inv and inv.items or {}
     local perPage = BAG_COLS * BAG_ROWS
-    local pages = math.max(1, math.ceil(table.getn(items) / perPage))
+    local pages = math.max(1, math.ceil(#items / perPage))
     if bagPage > pages then bagPage = pages end
     if bagPage < 1 then bagPage = 1 end
     for i, b in ipairs(panel.bagButtons) do
@@ -2054,7 +2054,7 @@ local function renderBags(inv)
         if item then paintItemButton(b, item) else b.entry = nil; b:Hide() end
     end
     if inv then
-        panel.bagSummary:SetText(table.getn(items) .. " items · " .. (inv.free or 0) .. " of "
+        panel.bagSummary:SetText(#items .. " items · " .. (inv.free or 0) .. " of "
             .. (inv.total or 0) .. " slots free")
     else
         panel.bagSummary:SetText("Loading…")
@@ -2076,7 +2076,7 @@ local TANK_SPECS = { protection = true, ["tank feral"] = true, ["tank shaman"] =
 function TB.BotSpecKind(specs)
     if not specs or specs == "" then return nil end
     local kind = nil
-    for spec in string.gfind(specs, "[^+]+") do
+    for spec in string.gmatch(specs, "[^+]+") do
         if TANK_SPECS[spec] then return nil end
         if HEAL_SPECS[spec] then kind = "heal"
         elseif DPS_SPECS[spec] and not kind then kind = "dps" end
@@ -2106,7 +2106,7 @@ local function renderBehavior()
         else
             -- Two columns, reflowed so a hidden chip leaves no hole.
             chip:ClearAllPoints()
-            chip:SetPoint("TOPLEFT", panel, "TOPLEFT", 12 + math.mod(shown, 2) * 156,
+            chip:SetPoint("TOPLEFT", panel, "TOPLEFT", 12 + math.fmod(shown, 2) * 156,
                 -96 - math.floor(shown / 2) * 28)
             shown = shown + 1
             chip:Show()
@@ -2131,7 +2131,7 @@ end
 local function renderSpells()
     local entry = currentBot and spellLists[currentBot] or nil
     local list = (entry and entry.spells) or {}
-    local pages = math.max(1, math.ceil(table.getn(list) / SPELL_ROWS))
+    local pages = math.max(1, math.ceil(#list / SPELL_ROWS))
     if spellPage > pages then spellPage = pages end
     if spellPage < 1 then spellPage = 1 end
     for i, row in ipairs(panel.spellRows) do
@@ -2149,18 +2149,18 @@ local function renderSpells()
             row:Hide()
         end
     end
-    if entry and entry.pending and table.getn(list) == 0 then
+    if entry and entry.pending and #list == 0 then
         panel.spellAsk:SetText("Asking…")
         panel.spellAsk:Disable()
     else
-        panel.spellAsk:SetText(table.getn(list) == 0 and "Ask for spellbook" or "Ask again")
+        panel.spellAsk:SetText(#list == 0 and "Ask for spellbook" or "Ask again")
         panel.spellAsk:Enable()
     end
     panel.spellPageText:SetText(spellPage .. " / " .. pages)
     if spellPage > 1 then panel.spellPrev:Enable() else panel.spellPrev:Disable() end
     if spellPage < pages then panel.spellNext:Enable() else panel.spellNext:Disable() end
     if panel.spellEmpty then
-        if table.getn(list) == 0 then panel.spellEmpty:Show() else panel.spellEmpty:Hide() end
+        if #list == 0 then panel.spellEmpty:Show() else panel.spellEmpty:Hide() end
     end
 end
 
@@ -2217,8 +2217,8 @@ local function profFlatRows()
             table.insert(flat, { kind = "recipe", skill = skill, recipe = recipe })
         end
         local missing = missingBySkill[skill.skill] or {}
-        if table.getn(missing) > 0 then
-            table.insert(flat, { kind = "group", skill = skill, count = table.getn(missing) })
+        if #missing > 0 then
+            table.insert(flat, { kind = "group", skill = skill, count = #missing })
             if not profCollapsed[skill.skill] then
                 for _, entry in ipairs(missing) do
                     table.insert(flat, { kind = "missing", skill = skill, missing = entry })
@@ -2232,8 +2232,8 @@ end
 local function renderProfs()
     local snapshot = currentBot and professions[currentBot] or nil
     local flat = (snapshot and profFlatRows()) or {}
-    local perPage = table.getn(panel.profRows)
-    local pages = math.max(1, math.ceil(table.getn(flat) / perPage))
+    local perPage = #panel.profRows
+    local pages = math.max(1, math.ceil(#flat / perPage))
     if profPage > pages then profPage = pages end
     if profPage < 1 then profPage = 1 end
     for i, row in ipairs(panel.profRows) do
@@ -2317,8 +2317,8 @@ local function renderProfs()
             else
                 row.craft:Hide()
             end
-            row:SetScript("OnEnter", function()
-                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+            row:SetScript("OnEnter", function(self, motion)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 if recipe and (tonumber(recipe.item) or 0) > 0 then
                     if GameTooltip.SetHyperlink then
                         GameTooltip:SetHyperlink("item:" .. recipe.item .. ":0:0:0")
@@ -2346,7 +2346,7 @@ local function renderProfs()
                 end
                 GameTooltip:Show()
             end)
-            row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            row:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
             row:Show()
             row:Enable()
         end
@@ -2358,7 +2358,7 @@ local function renderProfs()
             panel.profEmpty:SetText("The server does not list professions (no capability).")
         end
         panel.profEmpty:Show()
-    elseif table.getn(flat) == 0 then
+    elseif #flat == 0 then
         panel.profEmpty:SetText(profSearch ~= "" and "No recipes match the search." or "No professions.")
         panel.profEmpty:Show()
     else
@@ -2457,10 +2457,10 @@ end
 -- ── trade window follow-up ──────────────────────────────────────────────────
 -- "Give to me" without an open trade makes the bot open one first; once the
 -- window shows, the same order is sent again and the item goes in.
-local tradeFrame = CreateFrame("Frame", "TortoiseBotsManagerTradeWatcher")
+local tradeFrame = CreateFrame("Frame", "TortoiseBotsManagerTradeWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
 tradeFrame:RegisterEvent("TRADE_SHOW")
 tradeFrame:RegisterEvent("TRADE_CLOSED")
-tradeFrame:SetScript("OnEvent", function()
+tradeFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "TRADE_SHOW" then
         local partner = UnitName and norm(UnitName("NPC")) or nil
         local give = pendingGive
@@ -2489,11 +2489,11 @@ end)
 local refreshFrame
 function TB.RequestInventorySoon()
     if not refreshFrame then
-        refreshFrame = CreateFrame("Frame", "TortoiseBotsManagerInventoryRefresh")
-        refreshFrame:SetScript("OnUpdate", function()
-            this.elapsed = (this.elapsed or 0) + (arg1 or 0)
-            if this.elapsed < 1 then return end
-            this:Hide()
+        refreshFrame = CreateFrame("Frame", "TortoiseBotsManagerInventoryRefresh", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        refreshFrame:SetScript("OnUpdate", function(self, elapsed)
+            self.elapsed = (self.elapsed or 0) + (elapsed or 0)
+            if self.elapsed < 1 then return end
+            self:Hide()
             local bot = TB.inventoryRefreshBot
             TB.inventoryRefreshBot = nil
             if bot and TB.GetBotPanelBot() == bot then TB.RequestInventory(bot) end

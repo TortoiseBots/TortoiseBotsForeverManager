@@ -51,11 +51,11 @@ local function showItemTip(owner, itemId)
     GameTooltip:Show()
 end
 
-local function hideTip() GameTooltip:Hide() end
+local function hideTip(self) GameTooltip:Hide() end
 
 local function refreshSteps()
     local steps = (picked and TB.OrderStepsList and TB.OrderStepsList(picked)) or {}
-    local total = table.getn(steps)
+    local total = #steps
     FauxScrollFrame_Update(win.stepScroll, total, STEP_N, STEP_H)
     local offset = (FauxScrollFrame_GetOffset and FauxScrollFrame_GetOffset(win.stepScroll)) or 0
     for i = 1, STEP_N do
@@ -112,7 +112,7 @@ function TB.RefreshActiveOrders()
     TB.SetButtonActive(win.doneTab, showDone)
     win.empty:SetText(showDone and "No finished orders yet."
         or "No bot has an order right now. Press Order on a bot in the Guild tab to give one.")
-    local total = table.getn(rowsView)
+    local total = #rowsView
     FauxScrollFrame_Update(win.scroll, total, ROW_N, ROW_H)
     local offset = (FauxScrollFrame_GetOffset and FauxScrollFrame_GetOffset(win.scroll)) or 0
     for i = 1, ROW_N do
@@ -165,15 +165,15 @@ local function pick(bot)
 end
 
 local function createWindow()
-    win = CreateFrame("Frame", "TortoiseBotsManagerActiveOrdersWindow", TB.frame or UIParent)
+    win = CreateFrame("Frame", "TortoiseBotsManagerActiveOrdersWindow", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win:SetWidth(AW); win:SetHeight(WIN_H)
     win:SetFrameStrata("DIALOG")
     win:EnableMouse(true)
     win:SetMovable(true)
     win:SetClampedToScreen(true)
     win:RegisterForDrag("LeftButton")
-    win:SetScript("OnDragStart", function() win:StartMoving() end)
-    win:SetScript("OnDragStop", function()
+    win:SetScript("OnDragStart", function(self, button) win:StartMoving() end)
+    win:SetScript("OnDragStop", function(self)
         win:StopMovingOrSizing()
         local left, top = win:GetLeft(), win:GetTop()
         if left and top then
@@ -192,7 +192,7 @@ local function createWindow()
     TB.SetTextColor(title, color("title"))
     local close = CreateFrame("Button", nil, win, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -6)
-    close:SetScript("OnClick", function() TB.CloseActiveOrders() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseActiveOrders() end)
 
     local wip = win:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     wip:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -36)
@@ -212,11 +212,11 @@ local function createWindow()
         b:SetWidth(80); b:SetHeight(20)
         b:SetPoint("TOPLEFT", win, "TOPLEFT", x, -66)
         b:SetText(label)
-        b:SetScript("OnClick", function()
+        b:SetScript("OnClick", function(self, button)
             if showDone == done then return end
             showDone = done
             picked = nil
-            local bar = getglobal and getglobal("TortoiseBotsManagerActiveOrdersScrollScrollBar")
+            local bar = _G["TortoiseBotsManagerActiveOrdersScrollScrollBar"]
             if bar then bar:SetValue(0) end
             TB.RefreshActiveOrders()
         end)
@@ -229,14 +229,14 @@ local function createWindow()
     scroll:SetPoint("TOPLEFT", win, "TOPLEFT", 0, -LIST_TOP)
     scroll:SetWidth(AW - 28)
     scroll:SetHeight(ROW_N * ROW_H + 4)
-    scroll:SetScript("OnVerticalScroll", function()
+    scroll:SetScript("OnVerticalScroll", function(self, offset)
         FauxScrollFrame_OnVerticalScroll(ROW_H, TB.RefreshActiveOrders)
     end)
     win.scroll = scroll
 
     win.rows = {}
     for i = 1, ROW_N do
-        local row = CreateFrame("Button", nil, win)
+        local row = CreateFrame("Button", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
         row:SetWidth(AW - 34); row:SetHeight(ROW_H - 2)
         row:SetPoint("TOPLEFT", win, "TOPLEFT", 8, -(LIST_TOP + (i - 1) * ROW_H))
         row:RegisterForClicks("LeftButtonUp")
@@ -253,10 +253,10 @@ local function createWindow()
         row.infoText:SetPoint("TOPLEFT", row, "TOPLEFT", 6, -15)
         row.infoText:SetWidth(AW - 50); row.infoText:SetJustifyH("LEFT")
         TB.SetTextColor(row.infoText, color("text"))
-        row:SetScript("OnClick", function()
-            if this.bot then pick(this.bot) end
+        row:SetScript("OnClick", function(self, button)
+            if self.bot then pick(self.bot) end
         end)
-        row:SetScript("OnEnter", function() showItemTip(this, this.itemId) end)
+        row:SetScript("OnEnter", function(self, motion) showItemTip(self, self.itemId) end)
         row:SetScript("OnLeave", hideTip)
         row:Hide()
         win.rows[i] = row
@@ -277,11 +277,11 @@ local function createWindow()
     win.title:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -(top + 8))
     win.title:SetWidth(AW - 24); win.title:SetJustifyH("LEFT")
     TB.SetTextColor(win.title, color("title"))
-    win.titleHit = CreateFrame("Frame", nil, win)
+    win.titleHit = CreateFrame("Frame", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win.titleHit:SetPoint("TOPLEFT", win.title, "TOPLEFT", 0, 0)
     win.titleHit:SetWidth(AW - 24); win.titleHit:SetHeight(18)
     win.titleHit:EnableMouse(true)
-    win.titleHit:SetScript("OnEnter", function() showItemTip(this, this.itemId) end)
+    win.titleHit:SetScript("OnEnter", function(self, motion) showItemTip(self, self.itemId) end)
     win.titleHit:SetScript("OnLeave", hideTip)
 
     win.state = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -303,7 +303,7 @@ local function createWindow()
     stepScroll:SetPoint("TOPLEFT", win, "TOPLEFT", 0, -(stepsTop + 14))
     stepScroll:SetWidth(AW - 28)
     stepScroll:SetHeight(STEP_N * STEP_H)
-    stepScroll:SetScript("OnVerticalScroll", function()
+    stepScroll:SetScript("OnVerticalScroll", function(self, offset)
         FauxScrollFrame_OnVerticalScroll(STEP_H, refreshSteps)
     end)
     win.stepScroll = stepScroll
@@ -324,11 +324,11 @@ local function createWindow()
     win.cancelBtn:SetWidth(110); win.cancelBtn:SetHeight(20)
     win.cancelBtn:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 12, 10)
     win.cancelBtn:SetText("Cancel order")
-    win.cancelBtn:SetScript("OnClick", function()
+    win.cancelBtn:SetScript("OnClick", function(self, button)
         if picked and TB.ConfirmOrderCancel then TB.ConfirmOrderCancel(picked) end
     end)
 
-    win:SetScript("OnUpdate", function()
+    win:SetScript("OnUpdate", function(self, elapsed)
         local t = now()
         if t - lastRefresh >= REFRESH_EVERY then TB.RefreshActiveOrders() end
         if t - lastList >= LIST_EVERY then

@@ -120,7 +120,14 @@ function W:RegisterAllEvents() end
 function W:RegisterForClicks() end
 function W:StartMoving() end
 function W:StopMovingOrSizing() end
-function W:SetScript(name, fn) self.scripts[name] = fn end
+function W:SetScript(name, fn)
+    -- Preview scenes set the 1.12 event/arg1 globals; the ported addon takes
+    -- modern arguments (self, event, ...), so translate at the mock boundary.
+    self.scripts[name] = function(frame, a)
+        if name == "OnEvent" then return fn(frame, event, a or arg1) end
+        return fn(frame, a or arg1)
+    end
+end
 function W:GetScript(name) return self.scripts[name] end
 function W:SetID(i) self.wid = i end
 function W:GetID() return self.wid or 0 end
@@ -459,6 +466,7 @@ function IsShiftKeyDown() return nil end
 function IsControlKeyDown() return nil end
 function IsAltKeyDown() return nil end
 function SendChatMessage() end
+function RegisterAddonMessagePrefix() return true end
 function SendAddonMessage() end
 function GetRealZoneText() return "Elwynn Forest" end
 function GetZoneText() return "Elwynn Forest" end

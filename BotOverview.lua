@@ -34,7 +34,7 @@ local win
 -- The party bots (sorted), with their class ids: units we can see, minus us.
 local function overviewGroup()
     local bots, classIds = {}, {}
-    local raid = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    local raid = TB.RaidCount()
     local ids = C.CLASS_NAME_TO_ID or {}
     local function add(unit)
         if unit == "player" then return end
@@ -55,7 +55,7 @@ local function overviewGroup()
     if raid > 0 then
         for i = 1, raid do add("raid" .. i) end
     else
-        local party = (GetNumPartyMembers and GetNumPartyMembers()) or 0
+        local party = TB.PartyCount()
         for i = 1, party do add("party" .. i) end
     end
     table.sort(bots)
@@ -121,21 +121,21 @@ local function createRow(parent)
         chip.lamp = chip:CreateTexture(nil, "OVERLAY")
         chip.lamp:SetWidth(8); chip.lamp:SetHeight(8)
         chip.lamp:SetPoint("RIGHT", chip, "RIGHT", -6, 0)
-        chip:SetScript("OnEnter", function()
-            if not this.def then return end
-            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-            GameTooltip:SetText(this.def.label)
-            GameTooltip:AddLine(this.def.tip, 0.9, 0.9, 0.9, 1)
-            local stateWord = this.state == "on" and "On"
-                or (this.state == "off" and "Off" or "Not yet known")
+        chip:SetScript("OnEnter", function(self, motion)
+            if not self.def then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.def.label)
+            GameTooltip:AddLine(self.def.tip, 0.9, 0.9, 0.9, 1)
+            local stateWord = self.state == "on" and "On"
+                or (self.state == "off" and "Off" or "Not yet known")
             GameTooltip:AddLine("State: " .. stateWord, 0.9, 0.9, 0.9, 1)
             GameTooltip:AddLine("Click to switch on/off.", 0.9, 0.9, 0.9, 1)
             GameTooltip:Show()
         end)
-        chip:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        chip:SetScript("OnClick", function()
-            if this.bot and this.def and TB.SendBehavior then
-                TB.SendBehavior(this.bot, this.def.key)
+        chip:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+        chip:SetScript("OnClick", function(self, button)
+            if self.bot and self.def and TB.SendBehavior then
+                TB.SendBehavior(self.bot, self.def.key)
             end
         end)
         row.chips[i] = chip
@@ -144,21 +144,21 @@ local function createRow(parent)
     row.open = TB.StyleButton(CreateFrame("Button", nil, parent, "UIPanelButtonTemplate"))
     row.open:SetWidth(72); row.open:SetHeight(CHIP_H)
     row.open:SetText("Controls")
-    row.open:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    row.open:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText("Bot controls")
         GameTooltip:AddLine("Open this bot's gear, bags and behaviour.", 0.9, 0.9, 0.9, 1)
         GameTooltip:Show()
     end)
-    row.open:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    row.open:SetScript("OnClick", function()
-        if this.bot and TB.OpenBotPanel then TB.OpenBotPanel(this.bot) end
+    row.open:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    row.open:SetScript("OnClick", function(self, button)
+        if self.bot and TB.OpenBotPanel then TB.OpenBotPanel(self.bot) end
     end)
     return row
 end
 
 local function createWindow()
-    win = CreateFrame("Frame", "TortoiseBotsManagerBots", TB.frame or UIParent)
+    win = CreateFrame("Frame", "TortoiseBotsManagerBots", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win:SetWidth(WIN_W); win:SetHeight(120)
     win:SetFrameStrata("DIALOG")
     win:EnableMouse(true)
@@ -173,7 +173,7 @@ local function createWindow()
 
     local close = CreateFrame("Button", nil, win, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -6)
-    close:SetScript("OnClick", function() TB.CloseBots() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseBots() end)
 
     win.headers = {}
     local botHeader = win:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -215,7 +215,7 @@ end
 function TB.RefreshBots()
     if not win or not win:IsVisible() then return end
     local bots, classIds = overviewGroup()
-    local rowCount = math.min(table.getn(bots), MAX_ROWS)
+    local rowCount = math.min(#bots, MAX_ROWS)
     win:SetWidth(WIN_W)
     win:SetHeight(ROWS_TOP + rowCount * ROW_STEP + 40)
     if TB.HasFocusCapability and TB.HasFocusCapability() then win.focusHeader:Show() else win.focusHeader:Hide() end
@@ -290,7 +290,7 @@ end
 
 function TB.BotsAvailable()
     local bots = overviewGroup()
-    return table.getn(bots) > 0
+    return #bots > 0
 end
 
 function TB.OpenBots()
@@ -346,14 +346,14 @@ end
 -- A changed group re-asks nothing (rows read the cached bot state), but the
 -- window closes when the last party bot leaves.
 local dueAt
-local watcher = CreateFrame("Frame", "TortoiseBotsManagerBotsWatcher")
+local watcher = CreateFrame("Frame", "TortoiseBotsManagerBotsWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
 watcher:RegisterEvent("PARTY_MEMBERS_CHANGED")
 watcher:RegisterEvent("RAID_ROSTER_UPDATE")
-watcher:SetScript("OnEvent", function()
+watcher:SetScript("OnEvent", function(self, event, ...)
     if win and win:IsVisible() then dueAt = now() + 1 end
     if TB.UpdateBotsButton then TB.UpdateBotsButton() end
 end)
-watcher:SetScript("OnUpdate", function()
+watcher:SetScript("OnUpdate", function(self, elapsed)
     if not dueAt or now() < dueAt then return end
     dueAt = nil
     if win and win:IsVisible() then TB.RefreshBots() end

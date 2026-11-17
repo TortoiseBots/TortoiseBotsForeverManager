@@ -20,13 +20,13 @@ local NAME_MAX = 20
 local function norm(name) return name and TB.NormalizeName(name) or nil end
 
 local function setTooltip(button, title, lines)
-    button:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    button:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title)
         for _, line in ipairs(lines or {}) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 -- ── model ───────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ function TB.ParseTotemLine(msg)
     local extra = string.find(rest, "|", 1, true)
     if extra then rest = string.sub(rest, 1, extra - 1) end
     local slots, mode, known = {}, nil, nil
-    for pair in string.gfind(rest, "[^,]+") do
+    for pair in string.gmatch(rest, "[^,]+") do
         local _, _, key, value = string.find(pair, "^%s*(%a+)%s*=%s*(.-)%s*$")
         if key then
             key = string.lower(key)
@@ -72,7 +72,7 @@ function TB.ParseTotemLine(msg)
                 end
             elseif key == "known" then
                 known = {}
-                for item in string.gfind(value, "[^+]+") do
+                for item in string.gmatch(value, "[^+]+") do
                     item = TB.Trim(item)
                     if item ~= "" then table.insert(known, item) end
                 end
@@ -103,7 +103,7 @@ function TB.TotemLabel(value)
     if value == "none" then return "Auto" end
     if not value or value == "" then return "?" end
     local words = {}
-    for word in string.gfind(string.gsub(value, "%s+totem$", ""), "%S+") do
+    for word in string.gmatch(string.gsub(value, "%s+totem$", ""), "%S+") do
         if word ~= "of" then
             word = string.upper(string.sub(word, 1, 1)) .. string.sub(word, 2)
         end
@@ -137,7 +137,7 @@ end
 function TB.NextTotemMode(mode)
     local modes = C.TOTEM_MODES
     for i, m in ipairs(modes) do
-        if m == mode then return modes[math.mod(i, table.getn(modes)) + 1] end
+        if m == mode then return modes[math.fmod(i, #modes) + 1] end
     end
     return modes[1]
 end
@@ -274,10 +274,10 @@ end
 
 function TB.CycleTotemPreset()
     local list = TB.GetTotemPresets()
-    local count = table.getn(list)
+    local count = #list
     if count == 0 then return nil end
     local _, at = TB.FindTotemPreset((TB.GetSelectedTotemPreset() or {}).name)
-    local nextPreset = list[math.mod(at or 0, count) + 1]
+    local nextPreset = list[math.fmod(at or 0, count) + 1]
     TB.SelectTotemPreset(nextPreset.name)
     return nextPreset
 end
@@ -350,23 +350,23 @@ function TB.ConfirmSaveTotemPreset(bot)
         button2 = "Cancel",
         hasEditBox = 1,
         maxLetters = NAME_MAX,
-        OnShow = function()
-            local box = getglobal(this:GetName() .. "EditBox")
+        OnShow = function(self)
+            local box = self.editBox or _G[(self:GetName() or "") .. "EditBox"]
             if box then
                 box:SetText(current and current.name or "")
                 box:SetFocus()
             end
         end,
-        OnAccept = function()
-            local box = getglobal(this:GetParent():GetName() .. "EditBox")
+        OnAccept = function(self)
+            local box = self.editBox or _G[(self:GetName() or "") .. "EditBox"]
             TB.SaveCurrentTotemPreset(bot, box and box:GetText() or "")
         end,
-        EditBoxOnEnterPressed = function()
-            local parent = this:GetParent()
-            TB.SaveCurrentTotemPreset(bot, this:GetText())
+        EditBoxOnEnterPressed = function(self)
+            local parent = self:GetParent()
+            TB.SaveCurrentTotemPreset(bot, self:GetText())
             parent:Hide()
         end,
-        EditBoxOnEscapePressed = function() this:GetParent():Hide() end,
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
         timeout = 0,
         whileDead = 1,
         hideOnEscape = 1,
@@ -388,7 +388,7 @@ function TB.BuildTotemSlotMenu(name, slot, addButton)
         addButton({ text = TB.TotemLabel(choice), checked = (snapshot.slots[slot] == choice) and 1 or nil,
             func = function() TB.SendTotemSlot(bot, slot, choice) end })
     end
-    return table.getn(options)
+    return #options
 end
 
 local slotMenu
@@ -436,9 +436,9 @@ function TB.CreateTotemBlock(panel, parent)
             "Totem, which may take the earth slot while the group",
             "is feared and then gives it back.",
         })
-        b:SetScript("OnClick", function()
+        b:SetScript("OnClick", function(self, button)
             local bot = currentBot()
-            if bot then TB.OpenTotemSlotMenu(bot, this.slot) end
+            if bot then TB.OpenTotemSlotMenu(bot, self.slot) end
         end)
         block.slots[slot] = b
     end
@@ -450,7 +450,7 @@ function TB.CreateTotemBlock(panel, parent)
         "Before the pull: totems go down ahead of a pull.",
         "Only on order: totems drop when you press Drop totems.",
     })
-    block.mode:SetScript("OnClick", function()
+    block.mode:SetScript("OnClick", function(self, button)
         local bot = currentBot()
         local snapshot = bot and TB.GetTotems(bot)
         if snapshot then TB.SendTotemMode(bot, TB.NextTotemMode(snapshot.mode)) end
@@ -461,12 +461,12 @@ function TB.CreateTotemBlock(panel, parent)
         "Click to cycle through saved totem presets.",
         "Apply sets this shaman's four slots; Apply all sets every shaman in the party.",
     })
-    block.preset:SetScript("OnClick", function() TB.CycleTotemPreset() end)
+    block.preset:SetScript("OnClick", function(self, button) TB.CycleTotemPreset() end)
 
     block.apply = makeButton(parent, 12, 52)
     block.apply:SetText("Apply")
     setTooltip(block.apply, "Apply preset", { "Sets all four totems of this shaman to the shown preset." })
-    block.apply:SetScript("OnClick", function()
+    block.apply:SetScript("OnClick", function(self, button)
         local bot = currentBot()
         if bot then TB.ApplyTotemPreset(bot) end
     end)
@@ -474,7 +474,7 @@ function TB.CreateTotemBlock(panel, parent)
     block.applyAll = makeButton(parent, 68, 68)
     block.applyAll:SetText("Apply all")
     setTooltip(block.applyAll, "Apply preset to all", { "Sets all four totems of every shaman in your party to the shown preset." })
-    block.applyAll:SetScript("OnClick", function() TB.ApplyTotemPreset("party") end)
+    block.applyAll:SetScript("OnClick", function(self, button) TB.ApplyTotemPreset("party") end)
 
     block.save = makeButton(parent, 140, 84)
     block.save:SetText("Save preset")
@@ -482,7 +482,7 @@ function TB.CreateTotemBlock(panel, parent)
         "Stores this shaman's current four totems under a preset name you type.",
         "A name that exists is overwritten.",
     })
-    block.save:SetScript("OnClick", function()
+    block.save:SetScript("OnClick", function(self, button)
         local bot = currentBot()
         if bot then TB.ConfirmSaveTotemPreset(bot) end
     end)
@@ -490,7 +490,7 @@ function TB.CreateTotemBlock(panel, parent)
     block.delete = makeButton(parent, 228, 90)
     block.delete:SetText("Delete preset")
     setTooltip(block.delete, "Delete preset", { "Removes the shown preset from your saved list." })
-    block.delete:SetScript("OnClick", function()
+    block.delete:SetScript("OnClick", function(self, button)
         local preset = TB.GetSelectedTotemPreset()
         if preset then TB.DeleteTotemPreset(preset.name) end
     end)

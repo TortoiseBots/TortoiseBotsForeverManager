@@ -66,8 +66,8 @@ end
 local function targetFrameAnchor()
     -- TargetFrame is stock 1.12 FrameXML; on clients without it (or while
     -- the frame is hidden) the button has nowhere to sit.
-    if type(getglobal) == "function" then
-        local okFrame, frame = pcall(getglobal, "TargetFrame")
+    if _G then
+        local okFrame, frame = true, _G["TargetFrame"]
         if okFrame and type(frame) == "table" then return frame end
     end
     return nil
@@ -81,7 +81,7 @@ function TB.CreateTargetButton()
         icon = "Interface\\Buttons\\Button-Backpack-Up",
         tipTitle = "Bot controls",
         tip = "Open this bot's gear, bags and behaviour.",
-        onClick = function() TB.OpenTargetBotPanel() end,
+        onClick = function(self, button) TB.OpenTargetBotPanel() end,
     })
     b:SetPoint("LEFT", anchor, "RIGHT", -8, -10)
     b:Hide()
@@ -97,9 +97,9 @@ function TB.InitTargetButton()
     if not TB.CreateTargetButton then return end
     TB.CreateTargetButton()
     if watcher then return end
-    watcher = CreateFrame("Frame", "TortoiseBotsManagerTargetButtonWatcher")
+    watcher = CreateFrame("Frame", "TortoiseBotsManagerTargetButtonWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
     watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
-    watcher:SetScript("OnEvent", function()
+    watcher:SetScript("OnEvent", function(self, event, ...)
         if TB.RefreshTargetButton then TB.RefreshTargetButton() end
     end)
     if TB.RefreshTargetButton then TB.RefreshTargetButton() end

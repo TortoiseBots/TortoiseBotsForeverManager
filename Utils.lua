@@ -185,7 +185,7 @@ end
 -- makes the text jump. The font-object setters are guarded: a client
 -- without them keeps the template's font.
 local function fontObject(name)
-    return getglobal and getglobal(name) or nil
+    return _G[name]
 end
 function TB.SetButtonFont(button)
     if not button then return end
@@ -412,9 +412,9 @@ end
 function TB.StyleEditBox(box, placeholder)
     if not box then return box end
     local name = box.GetName and box:GetName()
-    if name and getglobal then
+    if name then
         for _, part in ipairs({ "Left", "Middle", "Right", "Mid" }) do
-            local tex = getglobal(name .. part)
+            local tex = _G[name .. part]
             if tex and tex.Hide then tex:Hide() end
         end
     end
@@ -450,9 +450,9 @@ function TB.StyleEditBox(box, placeholder)
         if box.SetScript then
             local setScript = box.SetScript
             local function wrapped(fn)
-                return function()
+                return function(...)
                     update()
-                    if fn then fn() end
+                    if fn then fn(...) end
                 end
             end
             local changed = box.GetScript and box:GetScript("OnTextChanged") or nil
@@ -548,14 +548,14 @@ end
 function TB.FindGroupUnit(name)
     local target = TB.NormalizeName(name)
     if not target or not UnitName then return nil end
-    local raid = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    local raid = TB.RaidCount()
     if raid > 0 then
         for i = 1, raid do
             local unit = "raid" .. i
             if TB.NormalizeName(UnitName(unit)) == target then return unit end
         end
     end
-    local party = (GetNumPartyMembers and GetNumPartyMembers()) or 0
+    local party = TB.PartyCount()
     for i = 1, party do
         local unit = "party" .. i
         if TB.NormalizeName(UnitName(unit)) == target then return unit end
@@ -746,11 +746,11 @@ end
 -- none of whose "-" strategies is present (a fury warrior is DPS).
 local function roleFromSpecs(roles, specs)
     local have = {}
-    for spec in string.gfind(specs, "[^+]+") do have[spec] = true end
+    for spec in string.gmatch(specs, "[^+]+") do have[spec] = true end
     for pass = 1, 2 do
         for _, role in ipairs(roles) do
             local matches = true
-            for sign, strat in string.gfind(role.strat or "", "([+-])([^,]+)") do
+            for sign, strat in string.gmatch(role.strat or "", "([+-])([^,]+)") do
                 if (sign == "-" or pass == 1) and (sign == "+") ~= (have[strat] == true) then
                     matches = false
                     break
@@ -908,13 +908,13 @@ end
 
 function TB.Roles.CycleBotRole(botName, classId)
     local roles = TB.Roles.GetClassRoles(classId)
-    local roleCount = table.getn(roles)
+    local roleCount = #roles
     if roleCount == 0 then return nil end
     local currentId = TB.Roles.GetBotRole(botName, classId)
     local nextIndex = 1
     for idx, r in ipairs(roles) do
         if r.id == currentId then
-            nextIndex = math.mod(idx, roleCount) + 1
+            nextIndex = math.fmod(idx, roleCount) + 1
             break
         end
     end

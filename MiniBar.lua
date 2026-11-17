@@ -127,8 +127,8 @@ function TB.GetMiniFavorites()
     local favs = TortoiseBotsDB.miniFavorites
     if favs and not TortoiseBotsDB.miniFavoritesOwn then
         local old = oldDefaultFavorites()
-        local same = table.getn(favs) == table.getn(old)
-        for i = 1, table.getn(old) do
+        local same = #favs == #old
+        for i = 1, #old do
             if favs[i] ~= old[i] then same = false end
         end
         if same then favs = nil end
@@ -245,7 +245,7 @@ function TB.ToggleMiniFavorite(intent)
             return false
         end
     end
-    if table.getn(favs) >= MAX_FAVORITES then
+    if #favs >= MAX_FAVORITES then
         if TB.SetStatus then TB.SetStatus("The mini bar holds " .. MAX_FAVORITES .. " favourites: drop one first.", "warn") end
         return false
     end
@@ -279,7 +279,7 @@ end
 -- An action slot: the icon inset 1px in a dark frame, a soft white wash on
 -- hover. Same look as the item slots of the bot panel.
 local function iconButton(parent, size)
-    local b = CreateFrame("Button", nil, parent)
+    local b = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     b:SetWidth(size); b:SetHeight(size)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     local frame = b:CreateTexture(nil, "BACKGROUND")
@@ -307,7 +307,7 @@ end
 local openCategory = nil
 
 local function createFlyout()
-    flyout = CreateFrame("Frame", "TortoiseBotsManagerMiniFlyout", UIParent)
+    flyout = CreateFrame("Frame", "TortoiseBotsManagerMiniFlyout", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     flyout:SetFrameStrata("DIALOG")
     flyout:SetWidth(FLY_COLS * FLY_W + 16)
     flyout:EnableMouse(true)
@@ -319,16 +319,16 @@ local function createFlyout()
     local close = CreateFrame("Button", nil, flyout, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", flyout, "TOPRIGHT", 0, 0)
     if TB.StyleCloseButton then TB.StyleCloseButton(close, -4, -4, 16) end
-    close:SetScript("OnClick", function() TB.OpenMiniCategory(nil) end)
+    close:SetScript("OnClick", function(self, button) TB.OpenMiniCategory(nil) end)
     flyout.hint = flyout:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     flyout.hint:SetPoint("BOTTOMLEFT", flyout, "BOTTOMLEFT", 10, 7)
     flyout.hint:SetText("Right-click: add to or drop from the favourites.")
     TB.SetTextColor(flyout.hint, color("faint"))
     flyout.entries = {}
     for i = 1, FLY_COLS * FLY_ROWS do
-        local e = CreateFrame("Button", nil, flyout)
+        local e = CreateFrame("Button", nil, flyout, BackdropTemplateMixin and "BackdropTemplate" or nil)
         e:SetWidth(FLY_W - 4); e:SetHeight(22)
-        local col = math.mod(i - 1, FLY_COLS)
+        local col = math.fmod(i - 1, FLY_COLS)
         local row = math.floor((i - 1) / FLY_COLS)
         e:SetPoint("TOPLEFT", flyout, "TOPLEFT", 8 + col * FLY_W, -30 - row * 26)
         e:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -350,23 +350,23 @@ local function createFlyout()
         local hl = e:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints(e)
         hl:SetTexture(1, 1, 1, 0.06)
-        e:SetScript("OnClick", function()
-            local def = this.def
+        e:SetScript("OnClick", function(self, button)
+            local def = self.def
             if not def then return end
-            if arg1 == "RightButton" then
+            if button == "RightButton" then
                 TB.ToggleMiniFavorite(def.intent)
             elseif usable(def) then
                 TB.RunActionIntent(def.intent)
             end
             TB.RefreshMiniBar()
         end)
-        e:SetScript("OnEnter", function()
-            if this.def then
-                showTooltip(this, this.def, isFavorite(this.def.intent)
+        e:SetScript("OnEnter", function(self, motion)
+            if self.def then
+                showTooltip(self, self.def, isFavorite(self.def.intent)
                     and "In your favourites (right-click drops it)." or "Right-click: add to your favourites.")
             end
         end)
-        e:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        e:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         e:Hide()
         table.insert(flyout.entries, e)
     end
@@ -395,7 +395,7 @@ local function renderFlyout()
             e:Hide()
         end
     end
-    local rows = math.ceil(table.getn(defs) / FLY_COLS)
+    local rows = math.ceil(#defs / FLY_COLS)
     if rows > FLY_ROWS then rows = FLY_ROWS end
     flyout:SetHeight(30 + rows * 26 + 22)
 end
@@ -464,8 +464,8 @@ function TB.LayoutMiniBar()
     if not bar then return end
     local favs = TB.GetMiniFavorites()
     local vertical = isVertical()
-    local x0 = 34 + table.getn(CATEGORIES) * STEP + 12
-    local y0 = 34 + table.getn(CATEGORIES) * STEP + 12
+    local x0 = 34 + #CATEGORIES * STEP + 12
+    local y0 = 34 + #CATEGORIES * STEP + 12
     if bar.handle and bar.expand then layoutChrome(vertical) end
     bar.divider:ClearAllPoints()
     if vertical then
@@ -519,7 +519,7 @@ function TB.LayoutMiniBar()
 end
 
 local function createBar()
-    bar = CreateFrame("Frame", "TortoiseBotsManagerMiniBar", UIParent)
+    bar = CreateFrame("Frame", "TortoiseBotsManagerMiniBar", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     bar:SetHeight(ICON + 12)
     bar:SetFrameStrata("DIALOG")
     bar:SetMovable(true)
@@ -541,15 +541,15 @@ local function createBar()
     -- The turtle is the drag handle; the bar background drags too.
     -- Locked (Settings): the bar stays where it is.
     bar:RegisterForDrag("LeftButton")
-    bar:SetScript("OnDragStart", function()
+    bar:SetScript("OnDragStart", function(self, button)
         if TortoiseBotsDB and TortoiseBotsDB.miniLocked then return end
         bar:StartMoving()
     end)
-    bar:SetScript("OnDragStop", function()
+    bar:SetScript("OnDragStop", function(self)
         bar:StopMovingOrSizing()
         savePosition()
     end)
-    local handle = CreateFrame("Button", nil, bar)
+    local handle = CreateFrame("Button", nil, bar, BackdropTemplateMixin and "BackdropTemplate" or nil)
     handle:SetWidth(22); handle:SetHeight(22)
     handle:SetPoint("LEFT", bar, "LEFT", 7, 0)
     handle:RegisterForDrag("LeftButton")
@@ -557,11 +557,11 @@ local function createBar()
     turtle:SetAllPoints(handle)
     turtle:SetTexture("Interface\\Icons\\Ability_Hunter_Pet_Turtle")
     turtle:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    handle:SetScript("OnDragStart", function()
+    handle:SetScript("OnDragStart", function(self, button)
         if TortoiseBotsDB and TortoiseBotsDB.miniLocked then return end
         bar:StartMoving()
     end)
-    handle:SetScript("OnDragStop", function()
+    handle:SetScript("OnDragStop", function(self)
         bar:StopMovingOrSizing()
         savePosition()
     end)
@@ -569,17 +569,17 @@ local function createBar()
     -- right-click; the same flip is on /tbm minilayout for key users.
     bar.handle = handle
     handle:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    handle:SetScript("OnClick", function()
-        if arg1 == "RightButton" then TB.ToggleMiniLayout() end
+    handle:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then TB.ToggleMiniLayout() end
     end)
-    handle:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+    handle:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText("TortoiseBots - mini mode")
         GameTooltip:AddLine("Drag to move. Category icons open their actions; right-click one to keep it on the bar. The + button opens the full window.", 0.9, 0.9, 0.9, 1)
         GameTooltip:AddLine("Right-click: horizontal or vertical bar.", 0.95, 0.72, 0.28)
         GameTooltip:Show()
     end)
-    handle:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    handle:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 
     bar.categories = {}
     for i, cat in ipairs(CATEGORIES) do
@@ -594,14 +594,14 @@ local function createBar()
         b.arrow:SetPoint("TOPRIGHT", b, "BOTTOMRIGHT", -4, -2)
         b.arrow:SetHeight(2)
         b.category = cat
-        b:SetScript("OnClick", function() TB.OpenMiniCategory(this.category.key) end)
-        b:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_TOP")
-            GameTooltip:SetText(this.category.label)
+        b:SetScript("OnClick", function(self, button) TB.OpenMiniCategory(self.category.key) end)
+        b:SetScript("OnEnter", function(self, motion)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(self.category.label)
             GameTooltip:AddLine("Click: show its actions.", 0.9, 0.9, 0.9, 1)
             GameTooltip:Show()
         end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        b:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         bar.categories[cat.key] = b
     end
 
@@ -612,19 +612,19 @@ local function createBar()
     bar.favButtons = {}
     for i = 1, MAX_FAVORITES do
         local b = iconButton(bar, ICON)
-        b:SetScript("OnClick", function()
-            local def = this.def
+        b:SetScript("OnClick", function(self, button)
+            local def = self.def
             if not def then return end
-            if arg1 == "RightButton" then
+            if button == "RightButton" then
                 TB.ToggleMiniFavorite(def.intent)
             elseif usable(def) then
                 TB.RunActionIntent(def.intent)
             end
         end)
-        b:SetScript("OnEnter", function()
-            if this.def then showTooltip(this, this.def, "Right-click: drop it from the bar.", this.slot) end
+        b:SetScript("OnEnter", function(self, motion)
+            if self.def then showTooltip(self, self.def, "Right-click: drop it from the bar.", self.slot) end
         end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        b:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         b:Hide()
         bar.favButtons[i] = b
     end
@@ -644,14 +644,14 @@ local function createBar()
         line:SetPoint("CENTER", expand, "CENTER", 0, 0)
         line:SetTexture(0.95, 0.72, 0.28, 1)
     end
-    expand:SetScript("OnClick", function() TB.SetMode("full") end)
-    expand:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+    expand:SetScript("OnClick", function(self, button) TB.SetMode("full") end)
+    expand:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText("Full window")
         GameTooltip:AddLine("Switch back to the full TortoiseBots window.", 0.9, 0.9, 0.9, 1)
         GameTooltip:Show()
     end)
-    expand:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    expand:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
     bar:Hide()
     TB.miniBar = bar
     TB.LayoutMiniBar()
@@ -722,11 +722,11 @@ function TB.ToggleMiniBar()
 end
 
 -- Target changes decide which icons are usable.
-local watcher = CreateFrame("Frame", "TortoiseBotsManagerMiniBarWatcher")
+local watcher = CreateFrame("Frame", "TortoiseBotsManagerMiniBarWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
 watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
 watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 watcher:RegisterEvent("PLAYER_LOGIN")
-watcher:SetScript("OnEvent", function()
+watcher:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
         -- Mini mode survives a reload: bring the bar back. No TB.uiReady
         -- guard: this event fires before InitUI runs on login.

@@ -68,10 +68,9 @@ local function now()
 end
 
 local function clearTable(t)
+    -- The 1.12 client's Lua 5.0 had an explicit array size (table.setn); Lua
+    -- 5.1 and the modern client derive it from the slots, so clearing is enough.
     for key in pairs(t) do t[key] = nil end
-    -- The 1.12 client (Lua 5.0) keeps an explicit array size; without this
-    -- table.insert appends after stale nil slots. Lua 5.1 tests reject setn.
-    pcall(table.setn, t, 0)
 end
 
 local function isOfflineValue(value)
@@ -225,7 +224,7 @@ local function commitSnapshot(rows)
     end
     rosterSnapshotReady = true
     TB.rosterSnapshotReady = true
-    rosterSnapshotCount = table.getn(rows)
+    rosterSnapshotCount = #rows
     rosterSnapshotError = nil
     TB.rosterSnapshotError = nil
     TB._pollPending = false
@@ -309,7 +308,7 @@ end
 -- The text is a ready sentence and may hold item links, so only the first
 -- two fields split on "|".
 local function commitAltSummary(rows)
-    local count = table.getn(rows)
+    local count = #rows
     if count == 0 then
         if TB.LogMessage then TB.LogMessage("No alt-bots are playing on their own.") end
         if TB.SetStatus then TB.SetStatus("No alt-bots are playing on their own.", "muted") end
@@ -333,7 +332,7 @@ function TB.ParseRosterMessage(msg)
 
     local fields = protocolFields(msg, "TBM:CC_ASSIGN_BEGIN|")
     if fields then
-        if table.getn(fields) < 1 or not string.find(fields[1], "^%d+$") then
+        if #fields < 1 or not string.find(fields[1], "^%d+$") then
             ccReceiving = nil
             return true, "error", { code = "malformed_cc_begin", message = "Malformed CC assignment snapshot." }
         end
@@ -343,7 +342,7 @@ function TB.ParseRosterMessage(msg)
 
     fields = protocolFields(msg, "TBM:CC_ASSIGN|")
     if fields then
-        if not ccReceiving or table.getn(fields) < 2 then
+        if not ccReceiving or #fields < 2 then
             ccReceiving = nil
             return true, "error", { code = "malformed_cc_row", message = "Malformed CC assignment snapshot." }
         end
@@ -365,7 +364,7 @@ function TB.ParseRosterMessage(msg)
         end
         local batch = ccReceiving
         ccReceiving = nil
-        if table.getn(batch.rows) ~= batch.expected then
+        if #batch.rows ~= batch.expected then
             return true, "error", { code = "cc_count_mismatch", message = "Incomplete CC assignment snapshot." }
         end
         commitCcAssignments(batch.rows)
@@ -374,7 +373,7 @@ function TB.ParseRosterMessage(msg)
 
     fields = protocolFields(msg, "TBM:ROSTER_BEGIN|")
     if fields then
-        if table.getn(fields) ~= 1 or not string.find(fields[1], "^%d+$") then
+        if #fields ~= 1 or not string.find(fields[1], "^%d+$") then
             snapshotError("malformed_begin", "Malformed roster snapshot.")
             return true, "error"
         end
@@ -392,7 +391,7 @@ function TB.ParseRosterMessage(msg)
             snapshotError("malformed_row", "Malformed roster snapshot.")
             return true, "error"
         end
-        if table.getn(fields) < 6 then
+        if #fields < 6 then
             skipSnapshotRow()
             return true, "row"
         end
@@ -440,7 +439,7 @@ function TB.ParseRosterMessage(msg)
         end
         local batch = receiving
         receiving = nil
-        if table.getn(batch.rows) + (batch.skipped or 0) ~= batch.expected then
+        if #batch.rows + (batch.skipped or 0) ~= batch.expected then
             snapshotError("count_mismatch", "Incomplete roster snapshot.")
             return true, "error"
         end
@@ -462,7 +461,7 @@ function TB.ParseRosterMessage(msg)
     if string.sub(msg, 1, 12) == "TBM:ALTBOTS|" then
         local list = string.sub(msg, 13)
         local names = {}
-        for raw in string.gfind(list, "[^,]+") do
+        for raw in string.gmatch(list, "[^,]+") do
             local n = normalize(raw)
             if n then names[n] = true end
         end
@@ -495,7 +494,7 @@ function TB.ParseRosterMessage(msg)
 
     fields = protocolFields(msg, "TBM:CLAIMED_BEGIN|")
     if fields then
-        if table.getn(fields) < 1 or not string.find(fields[1], "^%d+$") then
+        if #fields < 1 or not string.find(fields[1], "^%d+$") then
             claimedReceiving = nil
             return true, "error", { code = "malformed_claimed_begin", message = "Malformed claimed bots snapshot." }
         end
@@ -505,7 +504,7 @@ function TB.ParseRosterMessage(msg)
 
     fields = protocolFields(msg, "TBM:CLAIMED|")
     if fields then
-        local count = table.getn(fields)
+        local count = #fields
         -- Fields past the 10th come from newer servers and are ignored, so a
         -- module update that appends a field does not break older addons.
         if not claimedReceiving or count < 8 then
@@ -528,7 +527,7 @@ function TB.ParseRosterMessage(msg)
                 claimedReceiving = nil
                 return true, "error", { code = "malformed_claimed_row", message = "Malformed claimed bot row." }
             end
-            if profs and table.getn(profs) == 0 then profs = nil end
+            if profs and #profs == 0 then profs = nil end
         end
         -- Trailing alt flag: the player's own alt in the guild, not a claimed bot.
         local alt = count >= 10 and fields[10] == "1"
@@ -562,7 +561,7 @@ function TB.ParseRosterMessage(msg)
         if not claimedReceiving then return true end
         local batch = claimedReceiving
         claimedReceiving = nil
-        if table.getn(batch.rows) ~= batch.expected then
+        if #batch.rows ~= batch.expected then
             return true, "error", { code = "claimed_count_mismatch", message = "Incomplete claimed bot snapshot." }
         end
         commitClaimedSnapshot(batch.rows)
@@ -571,7 +570,7 @@ function TB.ParseRosterMessage(msg)
 
     fields = protocolFields(msg, "TBM:ROSTER_ERROR|")
     if fields then
-        if table.getn(fields) < 2 then
+        if #fields < 2 then
             snapshotError("malformed_error", "Roster request failed.")
         else
             snapshotError(fields[1], fields[2])
@@ -726,6 +725,12 @@ function TB.RemoveFromRoster(name)
 end
 
 -- ── live/diagnostic state ───────────────────────────────────────────────────
+-- The claimed guild bots, as committed from TBM:CLAIMED (read-only view; the
+-- UI and the fake-server tests read it).
+function TB.GetClaimedBots()
+    return claimedBots
+end
+
 function TB.GetState(name)
     name = normalize(name)
     return name and state[name] or nil
@@ -1046,7 +1051,7 @@ function TB.GetCcCandidates()
     local playerName = normalize(UnitName and UnitName("player"))
     for name, st in pairs(state) do
         if st and st.source == "snapshot" and st.online and name ~= playerName then
-            out[table.getn(out) + 1] = name
+            out[#out + 1] = name
         end
     end
     table.sort(out)
@@ -1077,7 +1082,7 @@ end
 function TB.SelectAllRoster(selectAll)
     local rows = (TB.GetDisplayRows and TB.GetDisplayRows(TB.filterText or "")) or {}
     if selectAll == nil then
-        local count = table.getn(rows)
+        local count = #rows
         local allSelected = count > 0
         if count == 0 then
             allSelected = false
@@ -1152,28 +1157,28 @@ end
 -- so the group never exceeds 5 (party) or 40 (raid).  Selection is ignored:
 -- Fill picks the bots for you.  Wire is unchanged: plain invite batches.
 function TB.GetFillPartyNames()
-    local groupSize = ((GetNumPartyMembers and GetNumPartyMembers()) or 0) + 1
+    local groupSize = (TB.PartyCount()) + 1
     local free = 5 - groupSize
     if free <= 0 then return {} end
     local out = {}
     for _, row in ipairs(TB.GetDisplayRows and TB.GetDisplayRows(TB.filterText or "") or {}) do
-        if table.getn(out) >= free then break end
+        if #out >= free then break end
         if lifecycleEligible(row.name, "invite") then table.insert(out, row.name) end
     end
     return out
 end
 
 function TB.GetFillRaidNames()
-    local raidSize = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    local raidSize = TB.RaidCount()
     local groupSize = raidSize
     if groupSize == 0 then
-        groupSize = ((GetNumPartyMembers and GetNumPartyMembers()) or 0) + 1
+        groupSize = (TB.PartyCount()) + 1
     end
     local free = 40 - groupSize
     if free <= 0 then return {} end
     local out = {}
     for _, bot in ipairs(claimedBots) do
-        if table.getn(out) >= free then break end
+        if #out >= free then break end
         if bot.online and not bot.group then
             table.insert(out, bot.name)
         end
@@ -1189,19 +1194,19 @@ end
 -- RAID_ROSTER_UPDATE covers raid (subgroup shifts, convert to raid).
 -- GROUP_ROSTER_UPDATE is a post-4.0 Retail event that never fires on 1.12;
 -- keep it guarded so modern test shims can still drive the watcher.
-local gf = CreateFrame("Frame", "TortoiseBotsManagerGroupWatcher")
+local gf = CreateFrame("Frame", "TortoiseBotsManagerGroupWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
 gf:RegisterEvent("PARTY_MEMBERS_CHANGED")
 gf:RegisterEvent("RAID_ROSTER_UPDATE")
 gf:RegisterEvent("PLAYER_ENTERING_WORLD")
 pcall(function() gf:RegisterEvent("GROUP_ROSTER_UPDATE") end)
-gf:SetScript("OnEvent", function()
+gf:SetScript("OnEvent", function(self, event, ...)
     local members = {}
-    local partyCount = (GetNumPartyMembers and GetNumPartyMembers()) or 0
+    local partyCount = TB.PartyCount()
     for i = 1, partyCount do
         local n = UnitName("party" .. i)
         if n and n ~= "" then members[normalize(n) or n] = true end
     end
-    local raidCount = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    local raidCount = TB.RaidCount()
     for i = 1, raidCount do
         local n = UnitName("raid" .. i)
         if n and n ~= "" then members[normalize(n) or n] = true end
@@ -1244,14 +1249,14 @@ function TB.ParseClaimedProfs(text)
     text = TB.Trim(text or "")
     if text == "" or text == "-" then return {} end
     local out = {}
-    for pair in string.gfind(text, "([^;]+)") do
+    for pair in string.gmatch(text, "([^;]+)") do
         local at = string.find(pair, ":", 1, true)
         if not at then return nil end
         local skill, value = string.sub(pair, 1, at - 1), string.sub(pair, at + 1)
         if not string.find(skill, "^%d+$") or not string.find(value, "^%d+$") then return nil end
         table.insert(out, { skill = tonumber(skill), value = tonumber(value) })
     end
-    if table.getn(out) == 0 then return nil end
+    if #out == 0 then return nil end
     return out
 end
 
@@ -1260,7 +1265,7 @@ end
 -- name/class match. Needs BotPanel's id->name table; without it only the
 -- cached snapshot can name professions.
 function TB.ClaimedMatchesProfession(bot, filter)
-    if not bot or not bot.profs or table.getn(bot.profs) == 0 then return false end
+    if not bot or not bot.profs or #bot.profs == 0 then return false end
     if not TB.ProfessionSkillName then return false end
     for _, skill in ipairs(bot.profs) do
         local name = string.lower(TB.ProfessionSkillName(skill.skill) or "")
@@ -1273,7 +1278,7 @@ end
 -- Tailoring 275". Skill values only (the row carries no max); nil without
 -- row professions.
 function TB.ClaimedProfsLine(bot)
-    if not bot or not bot.profs or table.getn(bot.profs) == 0 then return nil end
+    if not bot or not bot.profs or #bot.profs == 0 then return nil end
     if not TB.ProfessionSkillName then return nil end
     local parts = {}
     for _, skill in ipairs(bot.profs) do

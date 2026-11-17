@@ -133,7 +133,7 @@ local function mergeRows(pageRows)
     end
     local merged = {}
     local i, j = 1, 1
-    while i <= table.getn(fresh) or j <= table.getn(rows) do
+    while i <= #fresh or j <= #rows do
         local a, b = fresh[i], rows[j]
         if b == nil or (a ~= nil and (a.ts or "") >= (b.ts or "")) then
             table.insert(merged, a)
@@ -143,9 +143,9 @@ local function mergeRows(pageRows)
             j = j + 1
         end
     end
-    while table.getn(merged) > MAX_ROWS do table.remove(merged) end
+    while #merged > MAX_ROWS do table.remove(merged) end
     perChar.rows = merged
-    return table.getn(fresh)
+    return #fresh
 end
 TB.MergeLootRows = mergeRows
 
@@ -239,7 +239,7 @@ end
 local function parseLootLine(msg)
     if string.sub(msg or "", 1, 9) ~= "TBM:LOOT|" then return nil end
     local fields = splitProtocol(string.sub(msg, 10))
-    if table.getn(fields) < 8 then return nil end
+    if #fields < 8 then return nil end
     local event = trim(fields[3])
     if not KNOWN_EVENTS[event] then return nil end
     local bot = norm(fields[2])
@@ -441,8 +441,8 @@ TB.FormatLootTime = formatTime
 local function formatCopper(copper)
     copper = tonumber(copper) or 0
     local g = math.floor(copper / 10000)
-    local s = math.floor(math.mod(copper, 10000) / 100)
-    local c = math.mod(copper, 100)
+    local s = math.floor(math.fmod(copper, 10000) / 100)
+    local c = math.fmod(copper, 100)
     local text = ""
     if g > 0 then text = text .. "|cffffd700" .. g .. "g|r " end
     if g > 0 or s > 0 then text = text .. "|cffc7c7cf" .. s .. "s|r " end
@@ -587,7 +587,7 @@ local COLS = {
 }
 
 function TB.CreateLootTab(parent)
-    tab = CreateFrame("Frame", nil, parent)
+    tab = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     tab:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     local tw = (C.PANEL_W or 500) - (C.PAD or 10) * 2
     tab:SetWidth(tw); tab:SetHeight(325)
@@ -603,7 +603,7 @@ function TB.CreateLootTab(parent)
     if TB.UI and TB.UI.SetTooltip then
         TB.UI.SetTooltip(clearBtn, "Wipe this character's stored loot history")
     end
-    clearBtn:SetScript("OnClick", function()
+    clearBtn:SetScript("OnClick", function(self, button)
         if TB.ClearLootHistory then TB.ClearLootHistory() end
         if TB.RefreshLootView then TB.RefreshLootView() end
         if TB.SetStatus then TB.SetStatus("Loot history cleared.", "ok") end
@@ -617,10 +617,10 @@ function TB.CreateLootTab(parent)
         box:SetWidth(width); box:SetHeight(20)
         box:SetPoint("TOPLEFT", tab, "TOPLEFT", x, -32)
         box:SetAutoFocus(false)
-        box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-        box:SetScript("OnEnterPressed", function() this:ClearFocus() end)
-        box:SetScript("OnTextChanged", function()
-            if TB.SetLootFilter then TB.SetLootFilter(key, this:GetText()) end
+        box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+        box:SetScript("OnTextChanged", function(self, userInput)
+            if TB.SetLootFilter then TB.SetLootFilter(key, self:GetText()) end
         end)
         if tip and TB.UI and TB.UI.SetTooltip then TB.UI.SetTooltip(box, tip) end
         if TB.StyleEditBox then TB.StyleEditBox(box, hint) end
@@ -642,7 +642,7 @@ function TB.CreateLootTab(parent)
     tab.typeLabel = stepperLabel(404, 76, "Type")
 
     local function stepper(x, width, label, set, tip)
-        local row = CreateFrame("Frame", nil, tab)
+        local row = CreateFrame("Frame", nil, tab, BackdropTemplateMixin and "BackdropTemplate" or nil)
         row:SetWidth(width); row:SetHeight(18)
         row:SetPoint("TOPLEFT", tab, "TOPLEFT", x, -34)
         row:EnableMouse(true)
@@ -659,8 +659,8 @@ function TB.CreateLootTab(parent)
         plus:SetPoint("RIGHT", row, "RIGHT", 0, 0)
         plus:SetText("+")
         local function paint() text:SetText(label() or "") end
-        minus:SetScript("OnClick", function() set(-1); paint() end)
-        plus:SetScript("OnClick", function() set(1); paint() end)
+        minus:SetScript("OnClick", function(self, button) set(-1); paint() end)
+        plus:SetScript("OnClick", function(self, button) set(1); paint() end)
         if tip and TB.UI and TB.UI.SetTooltip then TB.UI.SetTooltip(row, tip) end
         row.label = text
         row.paint = paint
@@ -690,13 +690,13 @@ function TB.CreateLootTab(parent)
         local idx = 1
         for i, name in ipairs(ROW_TYPES) do if name == t then idx = i end end
         idx = idx + dir
-        if idx < 1 then idx = table.getn(ROW_TYPES) end
-        if idx > table.getn(ROW_TYPES) then idx = 1 end
+        if idx < 1 then idx = #ROW_TYPES end
+        if idx > #ROW_TYPES then idx = 1 end
         if TB.SetLootFilter then TB.SetLootFilter("rowType", ROW_TYPES[idx]) end
     end, "Row type: items, rolls, or all")
 
     local rowW = tw - 22
-    local header = CreateFrame("Frame", nil, tab)
+    local header = CreateFrame("Frame", nil, tab, BackdropTemplateMixin and "BackdropTemplate" or nil)
     header:SetWidth(rowW)
     header:SetHeight(16)
     header:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, -56)
@@ -723,14 +723,14 @@ function TB.CreateLootTab(parent)
     scroll:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, -73)
     scroll:SetWidth(rowW)
     scroll:SetHeight(LOOT_ROW_N * LOOT_ROW_H + 4)
-    scroll:SetScript("OnVerticalScroll", function()
+    scroll:SetScript("OnVerticalScroll", function(self, offset)
         FauxScrollFrame_OnVerticalScroll(LOOT_ROW_H, TB.RefreshLootView)
     end)
     TB.lootScroll = scroll
 
     local rows = {}
     for i = 1, LOOT_ROW_N do
-        local row = CreateFrame("Frame", nil, tab)
+        local row = CreateFrame("Frame", nil, tab, BackdropTemplateMixin and "BackdropTemplate" or nil)
         row:SetWidth(rowW)
         row:SetHeight(LOOT_ROW_H)
         row:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, -(i - 1) * LOOT_ROW_H)
@@ -767,7 +767,7 @@ function TB.CreateLootTab(parent)
         itemText:SetJustifyH("LEFT")
         row.itemText = itemText
 
-        local badge = CreateFrame("Frame", nil, row)
+        local badge = CreateFrame("Frame", nil, row, BackdropTemplateMixin and "BackdropTemplate" or nil)
         badge:SetWidth(COLS.result.w)
         badge:SetHeight(14)
         badge:SetPoint("LEFT", row, "LEFT", COLS.result.x, 0)
@@ -785,7 +785,7 @@ function TB.CreateLootTab(parent)
         row.reasonText = colText(COLS.reason, "GameFontHighlightSmall")
 
         row:EnableMouse(true)
-        row:SetScript("OnEnter", function()
+        row:SetScript("OnEnter", function(self, motion)
             local entry = row.entry
             if not entry then return end
             local src = rowSourceReason(entry)
@@ -811,7 +811,7 @@ function TB.CreateLootTab(parent)
             if entry.ts and entry.ts ~= "" then GameTooltip:AddLine(entry.ts, 0.62, 0.60, 0.56) end
             GameTooltip:Show()
         end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         table.insert(rows, row)
     end
     TB.lootRows = rows
@@ -831,7 +831,7 @@ end
 function TB.RefreshLootView()
     if not TB.lootScroll or not TB.lootRows then return end
     local list = TB.GetFilteredLoot and TB.GetFilteredLoot() or {}
-    local total = table.getn(list)
+    local total = #list
     FauxScrollFrame_Update(TB.lootScroll, total, LOOT_ROW_N, LOOT_ROW_H)
     local offset = (FauxScrollFrame_GetOffset and FauxScrollFrame_GetOffset(TB.lootScroll)) or 0
     for i = 1, LOOT_ROW_N do
@@ -879,7 +879,7 @@ function TB.RefreshLootView()
     end
     if tab and tab.emptyMsg then
         if total == 0 then
-            local rawCount = TB.GetLootHistory and table.getn(TB.GetLootHistory()) or 0
+            local rawCount = TB.GetLootHistory and #(TB.GetLootHistory()) or 0
             if rawCount > 0 then
                 tab.emptyMsg:SetText("|cff888888No loot matches your filters.|r")
             else

@@ -149,7 +149,7 @@ local function parseRaidLayout(msg)
     local _, _, warn = string.find(rest, "^warning|(.-)%s*$")
     if warn then return { warning = warn ~= "" and warn or "raid layout changed" } end
     local fields = {}
-    while table.getn(fields) < 4 do
+    while #fields < 4 do
         local at = string.find(rest, "|", 1, true)
         if not at then return nil end
         table.insert(fields, string.sub(rest, 1, at - 1))
@@ -159,14 +159,14 @@ local function parseRaidLayout(msg)
     if fields[1] == "" or fields[2] == "" then return nil end
     -- The layout line's tank list: lead (main) tank first, off-tanks after.
     local tankNames = {}
-    for name in string.gfind(fields[2] .. ",", "([^,]+),") do
+    for name in string.gmatch(fields[2] .. ",", "([^,]+),") do
         name = TB.Trim(name)
         if name ~= "" then table.insert(tankNames, name) end
     end
     return {
         bots = tonumber(fields[1]) or 0,
         mainTank = tankNames[1],
-        tankCount = table.getn(tankNames),
+        tankCount = #tankNames,
         tanks = fields[2],
         tankHealers = fields[3] ~= "" and fields[3] or "-",
         raidHealers = fields[4] ~= "" and fields[4] or "-",
@@ -197,7 +197,7 @@ local function parseRunLine(msg)
     -- turns them into spaces — so it splits at its first two separators.
     local fields = {}
     local rest = string.sub(msg, string.len(prefix) + 1)
-    while table.getn(fields) < 5 do
+    while #fields < 5 do
         local at = string.find(rest, "|", 1, true)
         if not at then return nil end
         table.insert(fields, string.sub(rest, 1, at - 1))
@@ -243,8 +243,8 @@ local function parseRunLine(msg)
         -- The speed and until labels share one field joined with "; " on a
         -- test-speed run ("speed 3.0 (test); until boss (step 38)"), so split
         -- each extra on ";" before matching.
-        for extra in string.gfind(extras, "[^|]+") do
-            for chunk in string.gfind(extra .. ";", "([^;]*);") do
+        for extra in string.gmatch(extras, "[^|]+") do
+            for chunk in string.gmatch(extra .. ";", "([^;]*);") do
                 local _, _, left = string.find(chunk, "^%s*left%s+(%d+)%s*$")
                 if left then out.left = tonumber(left) end
                 local _, _, speed = string.find(chunk, "^%s*speed%s+(.-)%s*$")
@@ -305,10 +305,10 @@ function TB.ParseRunMessage(msg)
         plansPending = false
         if TB.RefreshRunWindow then TB.RefreshRunWindow() end
         if TB.SetStatus then
-            if table.getn(list) == 0 then
+            if #list == 0 then
                 TB.SetStatus("No dungeon plans loaded.", "warn")
             else
-                TB.SetStatus("Dungeon plans · " .. table.getn(list), "ok")
+                TB.SetStatus("Dungeon plans · " .. #list, "ok")
             end
         end
         return true, "plans", list
@@ -409,12 +409,12 @@ function TB.SendRunBind()
     local names = { lead }
     local seen = { [string.lower(lead)] = true }
     local function add(name)
-        if name and name ~= "" and not seen[string.lower(name)] and table.getn(names) < 5 then
+        if name and name ~= "" and not seen[string.lower(name)] and #names < 5 then
             seen[string.lower(name)] = true
             table.insert(names, name)
         end
     end
-    for i = 1, (GetNumPartyMembers and GetNumPartyMembers() or 0) do
+    for i = 1, (TB.PartyCount() or 0) do
         local name = UnitName and UnitName("party" .. i)
         if name and TB.GetBotState and TB.GetBotState(name) then add(name) end
     end
@@ -591,13 +591,13 @@ function TB.SetRunStopReason(text)
 end
 
 local function setTooltip(button, title, lines)
-    button:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    button:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title)
         for _, line in ipairs(lines) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 local function smallButton(parent, label, width, x, y, tipTitle, tip, onClick)
@@ -618,15 +618,15 @@ local function lampColor(state)
 end
 
 local function createWindow()
-    win = CreateFrame("Frame", "TortoiseBotsManagerRunWindow", TB.frame or UIParent)
+    win = CreateFrame("Frame", "TortoiseBotsManagerRunWindow", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win:SetWidth(RW); win:SetHeight(500)
     win:SetFrameStrata("DIALOG")
     win:EnableMouse(true)
     win:SetMovable(true)
     win:SetClampedToScreen(true)
     win:RegisterForDrag("LeftButton")
-    win:SetScript("OnDragStart", function() win:StartMoving() end)
-    win:SetScript("OnDragStop", function()
+    win:SetScript("OnDragStart", function(self, button) win:StartMoving() end)
+    win:SetScript("OnDragStop", function(self)
         win:StopMovingOrSizing()
         -- 1.12-safe: StopMovingOrSizing detaches the anchor from the
         -- logical parent (see UI.lua drag header), so re-anchor with
@@ -650,7 +650,7 @@ local function createWindow()
 
     local close = CreateFrame("Button", nil, win, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -6)
-    close:SetScript("OnClick", function() TB.CloseRunWindow() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseRunWindow() end)
 
     local head = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     head:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -36)
@@ -667,7 +667,7 @@ local function createWindow()
     -- A segmented switch: the two halves touch, the picked one is filled.
     win.modeBot:SetWidth(139); win.modeBot:SetHeight(24)
     win.modeBot:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -73)
-    win.modeBot:SetScript("OnClick", function() TB.SetRunMode("bot") end)
+    win.modeBot:SetScript("OnClick", function(self, button) TB.SetRunMode("bot") end)
     setTooltip(win.modeBot, "Bots lead", {
         "Suggested when you play healer or DPS.",
         "A bot tank leads the way and pulls; you stay in the party and follow.",
@@ -677,7 +677,7 @@ local function createWindow()
     win.modeYou = TB.StyleButton(CreateFrame("Button", nil, win, "UIPanelButtonTemplate"))
     win.modeYou:SetWidth(139); win.modeYou:SetHeight(24)
     win.modeYou:SetPoint("TOPLEFT", win, "TOPLEFT", 149, -73)
-    win.modeYou:SetScript("OnClick", function() TB.SetRunMode("player") end)
+    win.modeYou:SetScript("OnClick", function(self, button) TB.SetRunMode("player") end)
     setTooltip(win.modeYou, "I lead", {
         "Suggested when you play the tank.",
         "You walk where you like; the bots pull the plan's packs near you,",
@@ -743,10 +743,10 @@ local function createWindow()
     win.planSearch:SetWidth(RW - 34); win.planSearch:SetHeight(20)
     win.planSearch:SetPoint("TOPLEFT", win, "TOPLEFT", 18, -246)
     win.planSearch:SetAutoFocus(false)
-    win.planSearch:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    win.planSearch:SetScript("OnEnterPressed", function() this:ClearFocus() end)
-    win.planSearch:SetScript("OnTextChanged", function()
-        planSearch = this:GetText() or ""
+    win.planSearch:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    win.planSearch:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    win.planSearch:SetScript("OnTextChanged", function(self, userInput)
+        planSearch = self:GetText() or ""
         planPage = 1
         TB.RefreshRunWindow()
     end)
@@ -756,10 +756,10 @@ local function createWindow()
         local row = TB.StyleButton(CreateFrame("Button", nil, win, "UIPanelButtonTemplate"))
         row:SetWidth(RW - 24); row:SetHeight(20)
         row:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -272 - (i - 1) * 22)
-        row:SetScript("OnClick", function()
-            if this.planName then
+        row:SetScript("OnClick", function(self, button)
+            if self.planName then
                 planPicker = false
-                TB.SetRunSelectedPlan(this.planName)
+                TB.SetRunSelectedPlan(self.planName)
             end
         end)
         table.insert(win.planRows, row)
@@ -775,18 +775,18 @@ local function createWindow()
     win.planPrev:SetWidth(26); win.planPrev:SetHeight(22)
     win.planPrev:SetPoint("TOPLEFT", win, "TOPLEFT", 104, -274 - PROW * 22)
     win.planPrev:SetText("<")
-    win.planPrev:SetScript("OnClick", function() planPage = planPage - 1; TB.RefreshRunWindow() end)
+    win.planPrev:SetScript("OnClick", function(self, button) planPage = planPage - 1; TB.RefreshRunWindow() end)
     win.planNext = TB.StyleButton(CreateFrame("Button", nil, win, "UIPanelButtonTemplate"))
     win.planNext:SetWidth(26); win.planNext:SetHeight(22)
     win.planNext:SetPoint("TOPLEFT", win, "TOPLEFT", 212, -274 - PROW * 22)
     win.planNext:SetText(">")
-    win.planNext:SetScript("OnClick", function() planPage = planPage + 1; TB.RefreshRunWindow() end)
+    win.planNext:SetScript("OnClick", function(self, button) planPage = planPage + 1; TB.RefreshRunWindow() end)
     win.planPageText = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     win.planPageText:SetPoint("TOPLEFT", win, "TOPLEFT", 132, -278 - PROW * 22)
     win.planPageText:SetWidth(78); win.planPageText:SetJustifyH("CENTER")
     TB.SetTextColor(win.planPageText, color("muted"))
     win:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-    win:SetScript("OnEvent", function()
+    win:SetScript("OnEvent", function(self, event, ...)
         herePlan = nil
         hereAsked = false
         TB.RefreshRunWindow()
@@ -795,7 +795,7 @@ local function createWindow()
     -- Controls: Start / Pause-Resume / Skip / Stop + reason.
     -- Everything below the plan hangs off win.lower, which the plan section
     -- moves down when it opens its list (layoutPlanSection).
-    win.lower = CreateFrame("Frame", nil, win)
+    win.lower = CreateFrame("Frame", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win.lower:SetWidth(RW); win.lower:SetHeight(1)
     local lower = win.lower
     win.lower:SetPoint("TOPLEFT", win, "TOPLEFT", 0, -240)
@@ -824,8 +824,8 @@ local function createWindow()
     TB.StyleCheckButton(win.untilBoss)
     win.untilBoss:SetWidth(20); win.untilBoss:SetHeight(20)
     win.untilBoss:SetPoint("TOPLEFT", lower, "TOPLEFT", 108, ctlY - 44)
-    win.untilBoss:SetScript("OnClick", function()
-        TB.SetRunStopBeforeBoss(this:GetChecked() and true or false)
+    win.untilBoss:SetScript("OnClick", function(self, button)
+        TB.SetRunStopBeforeBoss(self:GetChecked() and true or false)
     end)
     setTooltip(win.untilBoss, "Stop before the boss", {
         "The next Start ends the run before the first boss step,",
@@ -842,10 +842,10 @@ local function createWindow()
     win.stopBox:SetWidth(RW - 24); win.stopBox:SetHeight(20)
     win.stopBox:SetPoint("TOPLEFT", lower, "TOPLEFT", 12, ctlY - 70)
     win.stopBox:SetAutoFocus(false)
-    win.stopBox:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    win.stopBox:SetScript("OnEnterPressed", function() this:ClearFocus() end)
-    win.stopBox:SetScript("OnTextChanged", function()
-        stopReason = this:GetText() or ""
+    win.stopBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    win.stopBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    win.stopBox:SetScript("OnTextChanged", function(self, userInput)
+        stopReason = self:GetText() or ""
     end)
     setTooltip(win.stopBox, "Stop reason", { "Optional: why the run ends (shown in the note)." })
     -- What the last click did: sent, then the server's answer.
@@ -868,7 +868,7 @@ local function createWindow()
     win.runStep = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     win.runStep:SetPoint("TOPLEFT", lower, "TOPLEFT", 140, stY - 21)
     win.runStep:SetWidth(RW - 152); win.runStep:SetJustifyH("RIGHT")
-    win.runBar = CreateFrame("Frame", nil, win)
+    win.runBar = CreateFrame("Frame", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win.runBar:SetWidth(RW - 24); win.runBar:SetHeight(10)
     win.runBar:SetPoint("TOPLEFT", lower, "TOPLEFT", 12, stY - 38)
     -- A 10px bar is thinner than the 11px tooltip border edgeSize, so a
@@ -1038,7 +1038,7 @@ local function renderPlans()
     -- server says which plan the player stands in; the zone name may not
     -- match a plan name, and one zone can hold several wings.
     local inInstance = IsInInstance and IsInInstance()
-    if (inInstance or table.getn(here) > 1) and table.getn(plans) > 0 and not herePlan and not hereAsked
+    if (inInstance or #here > 1) and #plans > 0 and not herePlan and not hereAsked
         and TB.HasRunCapability() then
         hereAsked = true
         TB.SendBotCommand("run here")
@@ -1047,16 +1047,16 @@ local function renderPlans()
         local one = findPlan(herePlan)
         if one then here = { one } end
     end
-    if zone ~= planZone and table.getn(here) > 0 then
+    if zone ~= planZone and #here > 0 then
         local keep = false
         for _, plan in ipairs(here) do
             if plan.name == selectedPlan then keep = true end
         end
-        if not keep then selectedPlan = table.getn(here) == 1 and here[1].name or nil end
+        if not keep then selectedPlan = #here == 1 and here[1].name or nil end
     end
-    if table.getn(plans) > 0 then planZone = zone end
+    if #plans > 0 then planZone = zone end
 
-    local nHere = table.getn(here)
+    local nHere = #here
     local picked = selectedPlan and findPlan(selectedPlan)
     win.planPick:SetText(picked and TB.RunPlanTitle(picked.name) or "|cffff5050none|r")
     win.planToggle:SetText(planPicker and "Done" or "Change")
@@ -1064,7 +1064,7 @@ local function renderPlans()
     if planPicker then
         win.planSearch:Show()
         listTop = -272
-        local count = table.getn(shown)
+        local count = #shown
         local pages = math.max(1, math.ceil(count / PROW))
         if planPage > pages then planPage = pages end
         if planPage < 1 then planPage = 1 end
@@ -1084,7 +1084,7 @@ local function renderPlans()
             win.plans:SetText("Reload")
             win.plans:Enable()
         end
-        if table.getn(plans) == 0 then
+        if #plans == 0 then
             win.planEmpty:SetText("No plans yet: Reload asks the server.")
             win.planEmpty:Show()
         elseif count == 0 then
@@ -1094,7 +1094,7 @@ local function renderPlans()
             win.planEmpty:Hide()
         end
         if planKey(planSearch) ~= "" then
-            win.planHint:SetText(count .. " of " .. table.getn(plans) .. " plans match.")
+            win.planHint:SetText(count .. " of " .. #plans .. " plans match.")
         else
             win.planHint:SetText("Type part of a name, then click a plan.")
         end
@@ -1109,7 +1109,7 @@ local function renderPlans()
         if wings > PROW then wings = PROW end
         placeRows(listTop, wings)
         for i = 1, wings do fillRow(win.planRows[i], here[i]) end
-        if table.getn(plans) == 0 then
+        if #plans == 0 then
             win.planHint:SetText(plansPending and "Loading the plans..." or "No plans loaded: Change, then Reload.")
         elseif nHere == 1 and herePlan then
             win.planHint:SetText("|cff40ff40Detected from where you stand.|r Wrong? Change.")
@@ -1141,7 +1141,7 @@ end
 local tab
 
 function TB.CreateRunTab(parent)
-    tab = CreateFrame("Frame", nil, parent)
+    tab = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     tab:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     local tw = (C.PANEL_W or 500) - (C.PAD or 10) * 2
     tab:SetWidth(tw); tab:SetHeight(325)
@@ -1167,7 +1167,7 @@ function TB.CreateRunTab(parent)
     tab.open:SetWidth(160); tab.open:SetHeight(22)
     tab.open:SetPoint("TOPLEFT", tab, "TOPLEFT", 6, -222)
     tab.open:SetText("Open run window")
-    tab.open:SetScript("OnClick", function() TB.OpenRunWindow() end)
+    tab.open:SetScript("OnClick", function(self, button) TB.OpenRunWindow() end)
     tab:Hide()
     return tab
 end

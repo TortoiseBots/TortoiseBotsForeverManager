@@ -4,7 +4,7 @@ local C  = TB.C
 
 function TB.InitMinimap()
     local db = TortoiseBotsDB
-    local btn = CreateFrame("Button", "TortoiseBotsManagerMinimapButton", Minimap)
+    local btn = CreateFrame("Button", "TortoiseBotsManagerMinimapButton", Minimap, BackdropTemplateMixin and "BackdropTemplate" or nil)
     btn:SetWidth(30); btn:SetHeight(30); btn:SetFrameStrata("MEDIUM")
     btn:SetMovable(true); btn:EnableMouse(true)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
@@ -32,13 +32,13 @@ function TB.InitMinimap()
     end
     updatePos()
 
-    btn:SetScript("OnClick", function()
-        if arg1 == "RightButton" then TB.PollList(true); TB.Print("Polling…")
-        elseif arg1 == "MiddleButton" then if TB.ToggleSettings then TB.ToggleSettings() end
+    btn:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then TB.PollList(true); TB.Print("Polling…")
+        elseif button == "MiddleButton" then if TB.ToggleSettings then TB.ToggleSettings() end
         else TB.Toggle() end
     end)
-    btn:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_LEFT")
+    btn:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("TortoiseBots Manager")
         GameTooltip:AddLine("Left-click: toggle (/tbm)", 1,1,1)
         GameTooltip:AddLine("Right-click: refresh list", 1,1,1)
@@ -48,10 +48,10 @@ function TB.InitMinimap()
         GameTooltip:AddLine(online .. " online", C.COLOR.blue[1], C.COLOR.blue[2], C.COLOR.blue[3])
         GameTooltip:Show()
     end)
-    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    btn:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 
-    btn:SetScript("OnDragStart", function()
-        this:SetScript("OnUpdate", function()
+    btn:SetScript("OnDragStart", function(self, button)
+        self:SetScript("OnUpdate", function(_, elapsed)
             local mx, my = Minimap:GetCenter()
             local px, py = GetCursorPosition()
             local scale = Minimap:GetEffectiveScale()
@@ -60,7 +60,7 @@ function TB.InitMinimap()
             updatePos()
         end)
     end)
-    btn:SetScript("OnDragStop", function() this:SetScript("OnUpdate", nil) end)
+    btn:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
 
     TB.minimapButton   = btn
     TB.UpdateMinimapPos = updatePos

@@ -250,11 +250,10 @@ do
     local dialog = StaticPopupDialogs["TORTOISEBOTSMANAGER_TOTEM_PRESET"]
     assert(dialog and dialog.hasEditBox and dialog.OnAccept and dialog.EditBoxOnEnterPressed, "Save asks for a name")
     local box = { text = "My totems", GetText = function(self) return self.text end }
-    local realGetglobal = getglobal
-    getglobal = function() return box end
-    this = { GetParent = function() return { GetName = function() return "StaticPopup1" end } end }
-    dialog.OnAccept()
-    getglobal = realGetglobal
+    -- Modern StaticPopupDialogs callbacks receive the popup frame; its edit box
+    -- is self.editBox.
+    local popup = { editBox = box, GetName = function() return "StaticPopup1" end }
+    dialog.OnAccept(popup)
     local saved = TB.FindTotemPreset("My totems")
     assert(saved and saved.earth == "stoneskin totem" and saved.air == "none" and saved.water == "auto"
         and saved.fire == "searing totem", "Save stores the shaman's current four slots")
@@ -583,14 +582,12 @@ do
     end
     assert(watcher and watcher.events.PLAYER_TARGET_CHANGED, "the target watcher listens for target changes")
     local targetFrame = { name = "TargetFrame" }
-    local realGetglobal = getglobal
-    getglobal = function(name)
-        if name == "TargetFrame" then return targetFrame end
-        return realGetglobal(name)
-    end
+    -- The ported code reads _G["TargetFrame"] (getglobal is gone on this client).
+    local realTargetFrame = _G.TargetFrame
+    _G.TargetFrame = targetFrame
     TB.targetButton = nil
     assert(TB.CreateTargetButton(), "the target button anchors to the target frame")
-    getglobal = realGetglobal
+    _G.TargetFrame = realTargetFrame
     local btn = TB.targetButton
     assert(btn, "the target button exists")
 

@@ -1,6 +1,6 @@
 -- TortoiseBotsManager/Constants.lua
 -- Single source of truth for dimensions, colors, timings, and UX strings.
--- Vanilla 1.12 safe.
+-- Ported to WoW Forever 1.60.1 (Classic 16001); see PORT-NOTES.md.
 
 TortoiseBots = TortoiseBots or {}
 local TB = TortoiseBots
@@ -721,7 +721,7 @@ TB.C.COLOR = {
 }
 
 -- Shipped glyph textures (white, tinted with SetVertexColor); see tools/make_media.py.
-TB.C.MEDIA = "Interface\\AddOns\\TortoiseBotsManager\\Media\\"
+TB.C.MEDIA = "Interface\\AddOns\\TortoiseBotsManagerForever\\Media\\"
 
 -- Surfaces of the flat theme: one 1px frame on a solid fill, a lighter step
 -- per depth (window, header band, card, row). { r, g, b, a }.

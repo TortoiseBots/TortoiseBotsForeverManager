@@ -62,7 +62,15 @@ local function object(kind, parent)
         if self.kind == "FontString" or self.kind == "Texture" then
             error("SetScript called on a " .. self.kind)
         end
-        self.scripts[name] = callback
+        -- The ported addon uses the modern handler signatures (self, event, ...)
+        -- and (self, button/elapsed). The tests keep the 1.12 style of setting the
+        -- event/arg1 globals, so the mock translates them into the real arguments.
+        self.scripts[name] = function(frame, a, b, c, d)
+            if name == "OnEvent" then
+                return callback(frame, event, a or arg1, b or arg2, c or arg3, d or arg4)
+            end
+            return callback(frame, a or arg1)
+        end
     end
     function methods:SetBackdrop(...) end
     function methods:SetBackdropColor(...) self.backdropColor = {...} end
@@ -179,6 +187,7 @@ function StaticPopup_Show(which)
 end
 function time() return 123 end
 function SendChatMessage(message) table.insert(sent, message) end
+function RegisterAddonMessagePrefix() return true end
 function SendAddonMessage(prefix, message, channel)
     table.insert(addonSent, { prefix = prefix, message = message, channel = channel })
 end
@@ -236,10 +245,12 @@ function FauxScrollFrame_OnVerticalScroll() end
 
 for _, file in ipairs({
     "Constants.lua",
+    "Compat.lua",
     "Utils.lua",
     "Core.lua",
     "Roster.lua",
     "Comms.lua",
+    "FakeServer.lua",
     "UI.lua",
     "BotPanel.lua",
     "BotTotem.lua",
@@ -285,25 +296,18 @@ local history = TB.GetLogHistory()
 assert(table.getn(history) > 0, "log history must contain intercepted bot event")
 assert(history[table.getn(history)].msg == "Arcana queued for login (following Valguard)", "message must be tidied")
 event, arg1 = "CHAT_MSG_SYSTEM", "TBM:ROSTER_BEGIN0"
-chatEventPassed = false
-ChatFrame_OnEvent()
-assert(not chatEventPassed, "legacy chat dispatcher must hide structured roster noise")
+assert(chatFilters.CHAT_MSG_SYSTEM(nil, nil, "TBM:ROSTER_BEGIN0") == true,
+    "structured roster noise must be hidden by the chat filter")
 event, arg1 = "CHAT_MSG_SYSTEM", "Bot Arcana logout requested; durable ownership was retained."
-chatEventPassed = false
-ChatFrame_OnEvent()
-assert(not chatEventPassed, "legacy chat dispatcher must intercept bot logout message")
+assert(chatFilters.CHAT_MSG_SYSTEM(nil, nil, "Bot Arcana logout requested; durable ownership was retained.") == true,
+    "bot logout message must be intercepted")
 assert(history[table.getn(history)].msg == "Arcana logout requested", "logout message must be tidied in history")
-event, arg1 = "CHAT_MSG_SYSTEM", "A critical server error"
-ChatFrame_OnEvent()
-assert(chatEventPassed, "legacy chat dispatcher must preserve critical errors")
-event, arg1 = "CHAT_MSG_SAY", ".bot action stay"
-chatEventPassed = false
-ChatFrame_OnEvent()
-assert(not chatEventPassed, "legacy chat dispatcher must hide .bot say commands")
-event, arg1 = "CHAT_MSG_SYSTEM", "Bot commands: add/remove/logout/roster"
-chatEventPassed = false
-ChatFrame_OnEvent()
-assert(not chatEventPassed, "legacy chat dispatcher must intercept Bot commands server message")
+assert(chatFilters.CHAT_MSG_SYSTEM(nil, nil, "A critical server error") ~= true,
+    "the filter must preserve critical errors")
+assert(chatFilters.CHAT_MSG_SAY(nil, nil, ".bot action stay") == true,
+    "the filter must hide .bot say commands")
+assert(chatFilters.CHAT_MSG_SYSTEM(nil, nil, "Bot commands: add/remove/logout/roster") == true,
+    "the filter must intercept the Bot commands server message")
 assert(defaultChatMessages[table.getn(defaultChatMessages)] == "|cffd8a657TortoiseBots:|r |cff20ff20Enabled|r",
     "Bot commands must be replaced with TortoiseBots: Enabled")
 -- The current server's .bot help response only confirms the module is enabled.
@@ -6008,6 +6012,12 @@ end)();
     partyMembers = savedParty
     TB.CloseBotPanel()
 end)()
+
+dofile(root .. "/tests/fake_mode.lua")({
+    sent = sent,
+    addonSent = addonSent,
+    advanceTime = function(dt) now = now + (dt or 1) end,
+})
 
 dofile(root .. "/tests/phase0_tests.lua")()
 

@@ -121,7 +121,7 @@ end
 function TB.AddonCommandChannel()
     local c = TB.C or C
     if not addonTransportKnown or addonTransport ~= "party" then return nil end
-    if not SendAddonMessage then return nil end
+    if not TB.CanSendAddon() then return nil end
     return (c and c.ADDON_TRANSPORT) or "PARTY"
 end
 
@@ -170,7 +170,7 @@ local function actionLabel(intent)
 end
 
 local function setActionAck(fields)
-    if table.getn(fields) < 4 then return nil end
+    if #fields < 4 then return nil end
     local intent, scope, count, executor = fields[1], fields[2], fields[3], fields[4]
     if TB.Trim(intent) == "" or TB.Trim(scope) == ""
         or not string.find(count, "^%d+$") then
@@ -189,7 +189,7 @@ local function setActionAck(fields)
 end
 
 local function setActionError(fields)
-    if table.getn(fields) < 3 or TB.Trim(fields[1]) == "" or TB.Trim(fields[2]) == "" then
+    if #fields < 3 or TB.Trim(fields[1]) == "" or TB.Trim(fields[2]) == "" then
         return nil
     end
     return { intent = fields[1], code = fields[2], message = fields[3] }
@@ -337,7 +337,7 @@ local professionsReceiving = nil
 
 local function parseStateFields(text)
     local state = {}
-    for pair in string.gfind(text or "", "[^,]+") do
+    for pair in string.gmatch(text or "", "[^,]+") do
         -- Values may hold spaces: specs=tank feral+offdps.
         local _, _, key, value = string.find(pair, "^%s*([%w_]+)=(.-)%s*$")
         if key then state[string.lower(key)] = string.lower(value) end
@@ -363,7 +363,7 @@ function TB.ParseBotPanelMessage(msg)
     if msg == "TBM:BOTSTATE_END" then
         local batch = botStateReceiving
         botStateReceiving = nil
-        if batch and table.getn(batch.rows) == batch.expected and TB.SetBotStates then
+        if batch and #batch.rows == batch.expected and TB.SetBotStates then
             TB.SetBotStates(batch.rows)
         end
         return true
@@ -371,7 +371,7 @@ function TB.ParseBotPanelMessage(msg)
     if string.sub(msg, 1, 13) == "TBM:BOTSTATE|" then
         local fields = splitProtocol(string.sub(msg, 14))
         local name = fields[1] and TB.NormalizeName(fields[1]) or nil
-        if table.getn(fields) >= 2 and name and name ~= "" then
+        if #fields >= 2 and name and name ~= "" then
             local state = parseStateFields(fields[2])
             if botStateReceiving then
                 table.insert(botStateReceiving.rows, { name = name, state = state })
@@ -403,7 +403,7 @@ function TB.ParseBotPanelMessage(msg)
     if string.sub(msg, 1, 14) == "TBM:INV_BEGIN|" then
         local fields = splitProtocol(string.sub(msg, 15))
         local name = fields[1] and TB.NormalizeName(fields[1]) or nil
-        if table.getn(fields) >= 2 and name and name ~= "" and numberFields(fields, 2, 2) then
+        if #fields >= 2 and name and name ~= "" and numberFields(fields, 2, 2) then
             inventoryReceiving = { name = name, money = tonumber(fields[2]), equipped = {}, items = {} }
         else
             inventoryReceiving = nil
@@ -412,7 +412,7 @@ function TB.ParseBotPanelMessage(msg)
     end
     if string.sub(msg, 1, 11) == "TBM:INV_EQ|" then
         local fields = splitProtocol(string.sub(msg, 12))
-        if inventoryReceiving and table.getn(fields) >= 4 and numberFields(fields, 1, 4) then
+        if inventoryReceiving and #fields >= 4 and numberFields(fields, 1, 4) then
             inventoryReceiving.equipped[tonumber(fields[1])] = {
                 id = tonumber(fields[2]), durability = tonumber(fields[3]), maxDurability = tonumber(fields[4]),
                 slots = fields[5] and tonumber(fields[5]) or nil,
@@ -422,7 +422,7 @@ function TB.ParseBotPanelMessage(msg)
     end
     if string.sub(msg, 1, 13) == "TBM:INV_ITEM|" then
         local fields = splitProtocol(string.sub(msg, 14))
-        if inventoryReceiving and table.getn(fields) >= 5 and numberFields(fields, 1, 4) then
+        if inventoryReceiving and #fields >= 5 and numberFields(fields, 1, 4) then
             local flags = fields[5] or "-"
             table.insert(inventoryReceiving.items, {
                 bag = tonumber(fields[1]), slot = tonumber(fields[2]),
@@ -445,7 +445,7 @@ function TB.ParseBotPanelMessage(msg)
     end
     if string.sub(msg, 1, 9) == "TBM:PROF|" then
         local fields = splitProtocol(string.sub(msg, 10))
-        if professionsReceiving and table.getn(fields) >= 3 and numberFields(fields, 1, 3) then
+        if professionsReceiving and #fields >= 3 and numberFields(fields, 1, 3) then
             table.insert(professionsReceiving.skills, {
                 skill = tonumber(fields[1]), value = tonumber(fields[2]),
                 max = tonumber(fields[3]),
@@ -460,7 +460,7 @@ function TB.ParseBotPanelMessage(msg)
     end
     if string.sub(msg, 1, 19) == "TBM:RECIPE_MISSING|" then
         local fields = splitProtocol(string.sub(msg, 20))
-        if professionsReceiving and table.getn(fields) >= 5 and numberFields(fields, 1, 5) then
+        if professionsReceiving and #fields >= 5 and numberFields(fields, 1, 5) then
             table.insert(professionsReceiving.missing, {
                 skill = tonumber(fields[1]), spell = tonumber(fields[2]),
                 item = tonumber(fields[3]), reqSkill = tonumber(fields[4]),
@@ -478,8 +478,8 @@ function TB.ParseBotPanelMessage(msg)
         local wantRecipes = tonumber(profRecipes)
         local wantMissing = (profMissing and profMissing ~= "") and tonumber(profMissing) or 0
         if batch and name == batch.name and wantRecipes and wantMissing
-            and table.getn(batch.recipes) == wantRecipes
-            and table.getn(batch.missing) == wantMissing
+            and #batch.recipes == wantRecipes
+            and #batch.missing == wantMissing
             and TB.SetProfessions then
             TB.SetProfessions(name, { skills = batch.skills, recipes = batch.recipes, missing = batch.missing })
         end
@@ -490,7 +490,7 @@ function TB.ParseBotPanelMessage(msg)
         local inv = inventoryReceiving
         inventoryReceiving = nil
         local name = fields[1] and TB.NormalizeName(fields[1]) or nil
-        if inv and name == inv.name and table.getn(fields) >= 3 and numberFields(fields, 2, 3) then
+        if inv and name == inv.name and #fields >= 3 and numberFields(fields, 2, 3) then
             inv.free = tonumber(fields[2])
             inv.total = tonumber(fields[3])
             if TB.SetInventory then TB.SetInventory(name, inv) end
@@ -542,7 +542,7 @@ end
 function TB.RecordAIResponse(name, msg, kind)
     if not msg or msg == "" then return end
     table.insert(responseHistory, { name = name, message = msg, kind = kind or "info" })
-    while table.getn(responseHistory) > 8 do table.remove(responseHistory, 1) end
+    while #responseHistory > 8 do table.remove(responseHistory, 1) end
     TB.lastAIResponse = { name = name, message = msg, kind = kind or "info" }
     local statusKind = kind == "error" and "warn" or (kind == "pending" and "pending" or "ok")
     if TB.SetStatus then TB.SetStatus((name and (name .. ": ") or "") .. msg, statusKind) end
@@ -699,11 +699,12 @@ end
 
 -- ── inbound (CHAT_MSG_SYSTEM) ───────────────────────────────────────────────
 function TB.InitComms()
-    local f = CreateFrame("Frame", "TortoiseBotsManagerCommsFrame")
+    local f = CreateFrame("Frame", "TortoiseBotsManagerCommsFrame", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
     f:RegisterEvent("CHAT_MSG_SYSTEM")
     f:RegisterEvent("CHAT_MSG_WHISPER")
     f:RegisterEvent("CHAT_MSG_ADDON")
-    f:SetScript("OnEvent", function()
+    f:SetScript("OnEvent", function(self, event, ...)
+local arg1, arg2, arg3, arg4 = ...
         if event == "CHAT_MSG_SYSTEM" then TB.OnSystemMessage(arg1 or "")
         elseif event == "CHAT_MSG_WHISPER" then TB.OnWhisperMessage(arg1 or "", arg2 or "")
         elseif event == "CHAT_MSG_ADDON" then TB.OnAddonMessage(arg1 or "", arg2 or "", arg3 or "", arg4 or "") end
@@ -717,8 +718,8 @@ function TB.OnWhisperMessage(msg, sender)
     -- swallow the rest of the list.
     if name and TB.ConsumeVaultReply and TB.ConsumeVaultReply(name, msg or "") then
         local entry = TB.GetVault and TB.GetVault(name)
-        local bank = entry and entry.bank and table.getn(entry.bank) or 0
-        local mail = entry and entry.mail and table.getn(entry.mail) or 0
+        local bank = entry and entry.bank and #entry.bank or 0
+        local mail = entry and entry.mail and #entry.mail or 0
         if TB.SetStatus then
             if string.find(msg or "", "=== Bank ===") or string.find(msg or "", "=== Mailbox ===") then
                 TB.SetStatus("Reading " .. name .. "'s vault…", "pending")
@@ -734,7 +735,7 @@ function TB.OnWhisperMessage(msg, sender)
     -- reply; anything else falls through.
     if name and TB.ConsumeTaxiReply and TB.ConsumeTaxiReply(name, msg or "") then
         local entry = TB.GetNpcErrands and TB.GetNpcErrands(name)
-        local count = entry and entry.flights and table.getn(entry.flights) or 0
+        local count = entry and entry.flights and #entry.flights or 0
         if TB.SetStatus then
             if string.find(msg or "", "=== Taxi ===") then
                 TB.SetStatus("Reading " .. name .. "'s flights…", "pending")
@@ -752,7 +753,7 @@ function TB.OnWhisperMessage(msg, sender)
             if TB.CompleteOperation then TB.CompleteOperation(name, "command", true, msg) end
         end
         local entry = TB.GetSpellList and TB.GetSpellList(name)
-        local count = entry and entry.spells and table.getn(entry.spells) or 0
+        local count = entry and entry.spells and #entry.spells or 0
         if TB.SetStatus then
             if string.find(msg or "", "=== Spells ===") then
                 TB.SetStatus("Reading " .. name .. "'s spellbook…", "pending")
@@ -837,7 +838,7 @@ function TB.OnSystemMessage(msg)
             for key in pairs(serverCaps) do serverCaps[key] = nil end
             -- Comma- and pipe-separated lists both parse ("a,b|c d"); empty
             -- items and surrounding spaces are ignored.
-            for item in string.gfind(caps, "[^,%s|]+") do
+            for item in string.gmatch(caps, "[^,%s|]+") do
                 serverCaps[string.lower(TB.Trim(item))] = true
             end
             TB._serverCaps = serverCaps

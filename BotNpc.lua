@@ -143,12 +143,12 @@ function TB.ConsumeTaxiReply(name, msg)
     if not n then return false end
     e.flights = e.flights or {}
     for _, known in ipairs(e.flights) do
-        if known.n == n then return table.getn(e.flights) end
+        if known.n == n then return #e.flights end
     end
     table.insert(e.flights, { n = n, name = label })
     e.at = now()
     if TB.RefreshNpc then TB.RefreshNpc() end
-    return table.getn(e.flights)
+    return #e.flights
 end
 
 function TB.RequestFlights(name)
@@ -189,13 +189,13 @@ function TB.GetNpcBot()
 end
 
 local function setTooltip(button, title, lines)
-    button:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    button:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title)
         for _, line in ipairs(lines) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 local function orderButton(parent, label, x, y, tip, tipTitle, onClick)
@@ -209,15 +209,15 @@ local function orderButton(parent, label, x, y, tip, tipTitle, onClick)
 end
 
 local function createNpc()
-    npc = CreateFrame("Frame", "TortoiseBotsManagerBotNpc", TB.frame or UIParent)
+    npc = CreateFrame("Frame", "TortoiseBotsManagerBotNpc", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     npc:SetWidth(NW); npc:SetHeight(NH)
     npc:SetFrameStrata("DIALOG")
     npc:EnableMouse(true)
     npc:SetMovable(true)
     npc:SetClampedToScreen(true)
     npc:RegisterForDrag("LeftButton")
-    npc:SetScript("OnDragStart", function() npc:StartMoving() end)
-    npc:SetScript("OnDragStop", function()
+    npc:SetScript("OnDragStart", function(self, button) npc:StartMoving() end)
+    npc:SetScript("OnDragStop", function(self)
         npc:StopMovingOrSizing()
         -- 1.12-safe: StopMovingOrSizing detaches the anchor from the
         -- logical parent (see UI.lua drag header), so re-anchor with
@@ -240,7 +240,7 @@ local function createNpc()
 
     local close = CreateFrame("Button", nil, npc, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -6)
-    close:SetScript("OnClick", function() TB.CloseNpc() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseNpc() end)
 
     npc.talk = orderButton(npc, "Talk", 12, -38,
         "The bot greets the NPC you both stand at.",
@@ -278,8 +278,8 @@ local function createNpc()
         local row = TB.StyleButton(CreateFrame("Button", nil, npc, "UIPanelButtonTemplate"))
         row:SetWidth(NW - 24); row:SetHeight(20)
         row:SetPoint("TOPLEFT", npc, "TOPLEFT", 12, -108 - (i - 1) * 22)
-        row:SetScript("OnClick", function()
-            if currentBot and this.flightN then TB.SendNpcFly(currentBot, this.flightN) end
+        row:SetScript("OnClick", function(self, button)
+            if currentBot and self.flightN then TB.SendNpcFly(currentBot, self.flightN) end
         end)
         table.insert(npc.rows, row)
     end
@@ -295,7 +295,7 @@ local function createNpc()
     npc.ask:SetWidth(134); npc.ask:SetHeight(22)
     npc.ask:SetPoint("TOPLEFT", npc, "TOPLEFT", 12, -108 - ROWS * 22)
     npc.ask:SetText("Find flights")
-    npc.ask:SetScript("OnClick", function()
+    npc.ask:SetScript("OnClick", function(self, button)
         if currentBot then TB.RequestFlights(currentBot) end
     end)
     setTooltip(npc.ask, "Find flights", { "Lists this flight master's routes, then pick one." })
@@ -304,13 +304,13 @@ local function createNpc()
     prev:SetWidth(26); prev:SetHeight(22)
     prev:SetPoint("TOPLEFT", npc, "TOPLEFT", 154, -108 - ROWS * 22)
     prev:SetText("<")
-    prev:SetScript("OnClick", function() page = page - 1; TB.RefreshNpc() end)
+    prev:SetScript("OnClick", function(self, button) page = page - 1; TB.RefreshNpc() end)
     npc.prevPage = prev
     local nextBtn = TB.StyleButton(CreateFrame("Button", nil, npc, "UIPanelButtonTemplate"))
     nextBtn:SetWidth(26); nextBtn:SetHeight(22)
     nextBtn:SetPoint("TOPLEFT", npc, "TOPLEFT", 262, -108 - ROWS * 22)
     nextBtn:SetText(">")
-    nextBtn:SetScript("OnClick", function() page = page + 1; TB.RefreshNpc() end)
+    nextBtn:SetScript("OnClick", function(self, button) page = page + 1; TB.RefreshNpc() end)
     npc.nextPage = nextBtn
     local pageText = npc:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pageText:SetPoint("TOPLEFT", npc, "TOPLEFT", 182, -112 - ROWS * 22)
@@ -325,7 +325,7 @@ end
 local function renderRows()
     local e = currentBot and npcs[currentBot] or nil
     local list = (e and e.flights) or {}
-    local pages = math.max(1, math.ceil(table.getn(list) / ROWS))
+    local pages = math.max(1, math.ceil(#list / ROWS))
     if page > pages then page = pages end
     if page < 1 then page = 1 end
     for i, row in ipairs(npc.rows) do
@@ -345,7 +345,7 @@ local function renderRows()
     npc.pageText:SetText(page .. " / " .. pages)
     if page > 1 then npc.prevPage:Enable() else npc.prevPage:Disable() end
     if page < pages then npc.nextPage:Enable() else npc.nextPage:Disable() end
-    if e and e.pending and table.getn(list) == 0 then
+    if e and e.pending and #list == 0 then
         npc.ask:SetText("Asking…")
         npc.ask:Disable()
     else
@@ -353,7 +353,7 @@ local function renderRows()
         npc.ask:Enable()
     end
     if npc.flightEmpty then
-        if table.getn(list) == 0 then npc.flightEmpty:Show() else npc.flightEmpty:Hide() end
+        if #list == 0 then npc.flightEmpty:Show() else npc.flightEmpty:Hide() end
     end
     return list
 end
@@ -369,7 +369,7 @@ function TB.RefreshNpc()
     local e = npcs[currentBot]
     local list = renderRows()
     if e and e.header then
-        if table.getn(list) == 0 then
+        if #list == 0 then
             npc.ask:SetText("No flights here")
         else
             npc.ask:SetText("Find flights")

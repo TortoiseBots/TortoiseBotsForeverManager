@@ -124,16 +124,16 @@ function TB.OpenFocusMenu(name)
 end
 
 local function focusTooltip(button)
-    button:SetScript("OnEnter", function()
-        if not this.bot then return end
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Focus mark: " .. TB.FocusMarkLabel(TB.GetFocusMark(this.bot)))
+    button:SetScript("OnEnter", function(self, motion)
+        if not self.bot then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Focus mark: " .. TB.FocusMarkLabel(TB.GetFocusMark(self.bot)))
         GameTooltip:AddLine("The raid mark this bot attacks first. When that mark is on no mob it takes Skull.", 0.9, 0.9, 0.9, 1)
         GameTooltip:AddLine("Focus Skull and the dungeon run put every bot back on Skull.", 0.9, 0.9, 0.9, 1)
         GameTooltip:AddLine("Click to pick a mark.", 0.9, 0.9, 0.9, 1)
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 -- A square raid-icon button (Bots overview rows).
@@ -144,8 +144,8 @@ function TB.CreateFocusIconButton(parent, size)
     b.icon:SetWidth(size - 6); b.icon:SetHeight(size - 6)
     b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
     focusTooltip(b)
-    b:SetScript("OnClick", function()
-        if this.bot then TB.OpenFocusMenu(this.bot) end
+    b:SetScript("OnClick", function(self, button)
+        if self.bot then TB.OpenFocusMenu(self.bot) end
     end)
     return b
 end
@@ -177,8 +177,8 @@ function TB.CreateFocusBlock(panel, parent)
     b.icon:SetWidth(14); b.icon:SetHeight(14)
     b.icon:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     focusTooltip(b)
-    b:SetScript("OnClick", function()
-        if this.bot then TB.OpenFocusMenu(this.bot) end
+    b:SetScript("OnClick", function(self, button)
+        if self.bot then TB.OpenFocusMenu(self.bot) end
     end)
     b:Hide()
     block.button = b

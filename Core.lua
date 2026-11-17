@@ -13,7 +13,7 @@ local TB = TortoiseBots
 local C = TB.C or {} -- from Constants.lua (defensive fallback)
 
 TB.version = (C and C.VERSION) or TB.version or "0.1.0"
-TB.ADDON_NAME = "TortoiseBotsManager"
+TB.ADDON_NAME = "TortoiseBotsManagerForever"
 TB.serverVersion = TB.serverVersion or nil
 
 -- Semantic versions read "v1.2.3"; any other build string (an older
@@ -222,7 +222,7 @@ function TB.LogMessage(cleanMsg, rawMsg)
         msg = cleanMsg,
         raw = rawMsg or cleanMsg,
     })
-    if table.getn(TortoiseBotsDB.logHistory) > 150 then
+    if #TortoiseBotsDB.logHistory > 150 then
         table.remove(TortoiseBotsDB.logHistory, 1)
     end
     if TB.RefreshLogView then
@@ -295,26 +295,6 @@ local function installBotCommandChatFilter()
         end
         installed = true
     end
-    if ChatFrame_OnEvent and not TB._chatEventFilterInstalled then
-        local previousChatFrameOnEvent = ChatFrame_OnEvent
-        ChatFrame_OnEvent = function(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
-            local eventName = event
-            local message = arg1
-            if type(a1) == "string" then
-                eventName = a1
-                message = a2 or arg1
-            elseif type(a2) == "string" then
-                eventName = a2
-                message = a3 or arg1
-            end
-            if eventName and CHAT_FILTER_EVENTS[eventName] and isBotCommandMessage(message) then
-                return
-            end
-            return previousChatFrameOnEvent(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
-        end
-        TB._chatEventFilterInstalled = true
-        installed = true
-    end
     TB._chatFilterInstalled = installed
 end
 
@@ -337,9 +317,9 @@ local queueFrame -- lazy
 
 local function ensureQueueFrame()
     if queueFrame then return end
-    queueFrame = CreateFrame("Frame", "TortoiseBotsManagerQueueFrame")
-    queueFrame:SetScript("OnUpdate", function()
-        if table.getn(sendQueue) == 0 then return end
+    queueFrame = CreateFrame("Frame", "TortoiseBotsManagerQueueFrame", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    queueFrame:SetScript("OnUpdate", function(self, elapsed)
+        if #sendQueue == 0 then return end
         if not TB.CanSend() then return end
         local item = table.remove(sendQueue, 1)
         if item and item.cmd then
@@ -361,8 +341,11 @@ function TB.SendBotCommand(cmd, opts)
     if TB.trace then TB.TracePrint("> " .. cmd .. "   [" .. (channel or "chat") .. (TB.CanSend() and "" or ", queued") .. "]") end
     if TB.CanSend() then
         lastSend = (GetTime and GetTime()) or 0
-        if channel then
-            SendAddonMessage((C and C.ADDON_PREFIX) or "TBM", cmd, channel)
+        if TB.fake and TB.fake.enabled and TB.FakeServerSend then
+            -- Offline test mode: answer locally, nothing leaves the client.
+            TB.FakeServerSend(cmd)
+        elseif channel then
+            TB.SendAddonMessageCompat((C and C.ADDON_PREFIX) or "TBM", cmd, channel)
         elseif SendChatMessage then
             SendChatMessage(full)
         end
@@ -401,7 +384,7 @@ local function finishRosterBatch(batch)
     if activeRosterBatch ~= batch then return end
     activeRosterBatch = nil
     if rosterBatchFrame and rosterBatchFrame.Hide then rosterBatchFrame:Hide() end
-    local total = table.getn(batch.names)
+    local total = #batch.names
     local completed = batch.succeeded or 0
     local failed = batch.failed or 0
     if TB.SetStatus then
@@ -452,8 +435,8 @@ end
 
 local function ensureRosterBatchFrame()
     if rosterBatchFrame then return end
-    rosterBatchFrame = CreateFrame("Frame", "TortoiseBotsManagerRosterBatchFrame")
-    rosterBatchFrame:SetScript("OnUpdate", function()
+    rosterBatchFrame = CreateFrame("Frame", "TortoiseBotsManagerRosterBatchFrame", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    rosterBatchFrame:SetScript("OnUpdate", function(self, elapsed)
         rosterBatchTimeout()
     end)
 end
@@ -467,7 +450,7 @@ startRosterBatch = function(batch)
 
     local timeout = (batch.verb == "invite" and (C and C.INVITE_ACCEPT_TIMEOUT))
         or (C and C.ACTION_TIMEOUT) or 8
-    local batchDeadline = rosterBatchNow() + timeout * (table.getn(batch.names) * 2 + 1)
+    local batchDeadline = rosterBatchNow() + timeout * (#batch.names * 2 + 1)
     for _, name in ipairs(batch.names) do
         if TB.BeginOperation then TB.BeginOperation(name, batch.verb, true) end
         local st = TB.GetState and TB.GetState(name) or nil
@@ -500,7 +483,7 @@ function TB.QueueRosterBatch(verb, names)
             table.insert(clean, name)
         end
     end
-    if table.getn(clean) == 0 then return false end
+    if #clean == 0 then return false end
     -- Clicking Summon Party again while one runs would summon everyone twice.
     if verb == "summon" and TB.IsRosterBatchActive("summon") then
         if TB.SetStatus then TB.SetStatus("Summon already running.", "muted") end
@@ -513,7 +496,7 @@ function TB.QueueRosterBatch(verb, names)
     if not activeRosterBatch then
         startRosterBatch(table.remove(rosterBatchQueue, 1))
     elseif TB.SetStatus then
-        TB.SetStatus(verb .. " queued · " .. table.getn(clean) .. " bots", "pending")
+        TB.SetStatus(verb .. " queued · " .. #clean .. " bots", "pending")
     end
     return true
 end
@@ -664,7 +647,7 @@ function TB.SendQuestOrders(order)
     order = TB.Trim(order or "")
     if order ~= "accept" and order ~= "share" then return false end
     local names = TB.GetGroupedBotNames and TB.GetGroupedBotNames() or {}
-    if table.getn(names) == 0 then
+    if #names == 0 then
         if TB.SetStatus then TB.SetStatus("No grouped bots to " .. order .. ".", "muted") end
         return false
     end
@@ -705,17 +688,17 @@ local function scheduleReconcile()
         if pendingReconcileFrame.Show then pendingReconcileFrame:Show() end
         return
     end
-    pendingReconcileFrame = CreateFrame("Frame", "TortoiseBotsManagerReconcileFrame")
+    pendingReconcileFrame = CreateFrame("Frame", "TortoiseBotsManagerReconcileFrame", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
     pendingReconcileFrame.elapsed = 0
     pendingReconcileFrame.wait = wait
-    pendingReconcileFrame:SetScript("OnUpdate", function()
-        if not this.wait then return end
-        this.elapsed = (this.elapsed or 0) + (arg1 or 0)
-        if this.elapsed >= this.wait then
-            local w = this.wait
-            this.wait = nil
-            this.elapsed = 0
-            if this.Hide then this:Hide() end
+    pendingReconcileFrame:SetScript("OnUpdate", function(self, elapsed)
+        if not self.wait then return end
+        self.elapsed = (self.elapsed or 0) + (elapsed or 0)
+        if self.elapsed >= self.wait then
+            local w = self.wait
+            self.wait = nil
+            self.elapsed = 0
+            if self.Hide then self:Hide() end
             if w and TB.ReconcilePoll then TB.ReconcilePoll() end
         end
     end)
@@ -750,15 +733,15 @@ function TB.RequestPollSoon(delay)
     delay = delay or (C and C.POLL_AFTER_CMD) or 1.4
     if type(delay) ~= "number" then delay = 1.4 end
     if not pollFrame then
-        pollFrame = CreateFrame("Frame", "TortoiseBotsManagerPollFrame")
+        pollFrame = CreateFrame("Frame", "TortoiseBotsManagerPollFrame", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
         pollFrame.elapsed = 0
         pollFrame.wait = nil
-        pollFrame:SetScript("OnUpdate", function()
-            if not this.wait then return end
-            this.elapsed = (this.elapsed or 0) + (arg1 or 0)
-            if this.elapsed >= this.wait then
-                this.wait = nil; this.elapsed = 0
-                if this.Hide then this:Hide() end
+        pollFrame:SetScript("OnUpdate", function(self, elapsed)
+            if not self.wait then return end
+            self.elapsed = (self.elapsed or 0) + (elapsed or 0)
+            if self.elapsed >= self.wait then
+                self.wait = nil; self.elapsed = 0
+                if self.Hide then self:Hide() end
                 TB.PollList(true)
             end
         end)
@@ -774,12 +757,12 @@ end
 local feedbackFrame
 local function ensureFeedbackFrame()
     if feedbackFrame then return end
-    feedbackFrame = CreateFrame("Frame", "TortoiseBotsManagerFeedbackFrame")
+    feedbackFrame = CreateFrame("Frame", "TortoiseBotsManagerFeedbackFrame", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
     feedbackFrame.elapsed = 0
-    feedbackFrame:SetScript("OnUpdate", function()
-        this.elapsed = (this.elapsed or 0) + (arg1 or 0)
-        if this.elapsed < 1 then return end
-        this.elapsed = 0
+    feedbackFrame:SetScript("OnUpdate", function(self, elapsed)
+        self.elapsed = (self.elapsed or 0) + (elapsed or 0)
+        if self.elapsed < 1 then return end
+        self.elapsed = 0
         if not TB.actionFeedback then return end
         local now = (GetTime and GetTime()) or 0
         local expired = nil
@@ -877,13 +860,15 @@ function TB.RequestMode(mode)
 end
 
 -- ── Lifecycle ────────────────────────────────────────────────────────────────
-local ef = CreateFrame("Frame", "TortoiseBotsManagerCoreFrame")
+local ef = CreateFrame("Frame", "TortoiseBotsManagerCoreFrame", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
 ef:RegisterEvent("ADDON_LOADED")
 ef:RegisterEvent("PLAYER_ENTERING_WORLD")
 ef:RegisterEvent("PLAYER_LOGIN")
-ef:SetScript("OnEvent", function()
-    if event == "ADDON_LOADED" and (arg1 == "TortoiseBotsManager" or arg1 == "TortoiseBots") then
+ef:SetScript("OnEvent", function(self, event, ...)
+local arg1 = ...
+    if event == "ADDON_LOADED" and (arg1 == TB.ADDON_NAME or arg1 == "TortoiseBotsManager" or arg1 == "TortoiseBots") then
         initDB()
+        TB.RegisterAddonPrefix(TB.C and TB.C.ADDON_PREFIX or "TBM")
         installBotCommandChatFilter()
         if TB.InitRoster  then TB.InitRoster()  end
         if TB.InitComms   then TB.InitComms()   end
@@ -899,10 +884,10 @@ ef:SetScript("OnEvent", function()
 end)
 
 -- Periodic poll (panel open: 8s, hidden: 20s, respects autoPoll)
-local pf = CreateFrame("Frame", "TortoiseBotsManagerAutoPoll")
+local pf = CreateFrame("Frame", "TortoiseBotsManagerAutoPoll", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
 pf.elapsed = 0
-pf:SetScript("OnUpdate", function()
-    pf.elapsed = (pf.elapsed or 0) + (arg1 or 0)
+pf:SetScript("OnUpdate", function(self, elapsed)
+    pf.elapsed = (pf.elapsed or 0) + (elapsed or 0)
     if (pf.elapsed or 0) < 1 then return end
     pf.elapsed = 0
     local now = (GetTime and GetTime()) or 0

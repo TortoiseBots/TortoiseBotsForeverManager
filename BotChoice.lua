@@ -72,14 +72,14 @@ function TB.ParseChoiceLine(msg)
     local extra = string.find(rest, "|", 1, true)
     if extra then rest = string.sub(rest, 1, extra - 1) end
     local kind, value, known = nil, nil, nil
-    for pair in string.gfind(rest, "[^,]+") do
+    for pair in string.gmatch(rest, "[^,]+") do
         local _, _, key, item = string.find(pair, "^%s*([%a_]+)%s*=%s*(.-)%s*$")
         if key then
             key = string.lower(key)
             item = string.lower(item or "")
             if key == "known" then
                 known = {}
-                for entry in string.gfind(item, "[^+]+") do
+                for entry in string.gmatch(item, "[^+]+") do
                     entry = TB.Trim(entry)
                     if entry ~= "" then table.insert(known, entry) end
                 end
@@ -112,7 +112,7 @@ function TB.ChoiceLabel(kind, value)
     if kind ~= string.lower(kind) then kind = string.lower(kind) end
     if VALUE_LABELS[kind] and VALUE_LABELS[kind][value] then return VALUE_LABELS[kind][value] end
     local words = {}
-    for word in string.gfind(value, "%S+") do
+    for word in string.gmatch(value, "%S+") do
         if word ~= "of" then
             word = string.upper(string.sub(word, 1, 1)) .. string.sub(word, 2)
         end
@@ -276,9 +276,9 @@ function TB.CreateChoiceBlock(panel, parent)
     for i = 1, MAX_CHOICES do
         local b = makeButton(parent, 12, PANEL_W - 24)
         b.slot = i
-        b:SetScript("OnClick", function()
+        b:SetScript("OnClick", function(self, button)
             local bot = currentBot()
-            if bot and this.choiceKind then TB.OpenChoiceMenu(bot, this.choiceKind) end
+            if bot and self.choiceKind then TB.OpenChoiceMenu(bot, self.choiceKind) end
         end)
         block.kinds[i] = b
     end
@@ -290,13 +290,13 @@ local function setEnabled(button, on)
 end
 
 local function setTooltip(button, title, lines)
-    button:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    button:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title)
         for _, line in ipairs(lines or {}) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1) end
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 -- `top` is the y offset (negative, from the panel's top) of the heading.
@@ -305,7 +305,7 @@ function TB.RenderChoiceBlock(bot, classId, top)
     if not block then return top end
     local show = bot and TB.HasChoiceCapability()
     local kinds = show and TB.ChoiceKinds(bot) or {}
-    if table.getn(kinds) > MAX_CHOICES then
+    if #kinds > MAX_CHOICES then
         local trimmed = {}
         for i = 1, MAX_CHOICES do table.insert(trimmed, kinds[i]) end
         kinds = trimmed

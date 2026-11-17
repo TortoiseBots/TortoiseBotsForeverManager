@@ -117,19 +117,19 @@ function TB.ParseBlessingLine(msg)
     local extra = string.find(rest, "|", 1, true)
     if extra then rest = string.sub(rest, 1, extra - 1) end
     local classes, known, players = {}, nil, {}
-    for pair in string.gfind(rest, "[^,]+") do
+    for pair in string.gmatch(rest, "[^,]+") do
         local _, _, key, rawVal = string.find(pair, "^%s*(%a+)%s*=%s*(.-)%s*$")
         if key then
             key = string.lower(key)
             local value = string.lower(rawVal)
             if key == "known" then
                 known = {}
-                for item in string.gfind(value, "[^+]+") do
+                for item in string.gmatch(value, "[^+]+") do
                     item = TB.Trim(item)
                     if validBlessing(item) and item ~= "auto" then table.insert(known, item) end
                 end
             elseif key == "players" then
-                for item in string.gfind(rawVal, "[^+]+") do
+                for item in string.gmatch(rawVal, "[^+]+") do
                     local _, _, pname, pbless = string.find(item, "^%s*([^:]+):(%a+)%s*$")
                     if pname and pbless then
                         pname = norm(TB.Trim(pname))
@@ -183,12 +183,12 @@ end
 -- the paladin cannot cast any more starts from Auto.
 function TB.NextBlessing(current, known, step)
     local options = TB.BlessingOptions(known)
-    local count = table.getn(options)
+    local count = #options
     local at = 1
     for i, b in ipairs(options) do
         if b == current then at = i end
     end
-    return options[math.mod(at - 1 + step + count, count) + 1]
+    return options[math.fmod(at - 1 + step + count, count) + 1]
 end
 
 function TB.BlessingLabel(value)
@@ -271,19 +271,19 @@ end
 
 local function groupUnits()
     local out = {}
-    local raid = (GetNumRaidMembers and GetNumRaidMembers()) or 0
+    local raid = TB.RaidCount()
     if raid > 0 then
         for i = 1, raid do table.insert(out, "raid" .. i) end
     else
         table.insert(out, "player")
-        local party = (GetNumPartyMembers and GetNumPartyMembers()) or 0
+        local party = TB.PartyCount()
         for i = 1, party do table.insert(out, "party" .. i) end
     end
     return out
 end
 
 function TB.BlessingScope()
-    if GetNumRaidMembers and GetNumRaidMembers() > 0 then return "raid" end
+    if TB.RaidCount() > 0 then return "raid" end
     return "party"
 end
 
@@ -330,7 +330,7 @@ end
 
 function TB.BlessingAvailable()
     if not TB.HasBlessingCapability() then return false end
-    return table.getn((TB.GetBlessingGroup())) > 0
+    return #((TB.GetBlessingGroup())) > 0
 end
 
 function TB.RequestBlessings()
@@ -382,19 +382,19 @@ local function cycleAura(bot, step)
     local snap = TB.GetChoice(bot, "aura")
     if not snap then return false end
     local options = TB.ChoiceOptions("aura", snap.known)
-    local count = table.getn(options)
+    local count = #options
     if count == 0 then return false end
     local at = 1
     for i, v in ipairs(options) do
         if v == snap.value then at = i end
     end
-    local nextVal = options[math.mod(at - 1 + step + count, count) + 1]
+    local nextVal = options[math.fmod(at - 1 + step + count, count) + 1]
     return TB.SendChoice(bot, "aura", nextVal)
 end
 
 function TB.ApplyAutoBlessings()
     local paladins, present = TB.GetBlessingGroup()
-    if table.getn(paladins) == 0 then return 0 end
+    if #paladins == 0 then return 0 end
     local snapshots = {}
     for _, p in ipairs(paladins) do snapshots[p] = TB.GetBlessings(p) end
     local plan = TB.ComputeAutoBlessings(paladins, snapshots, present)
@@ -443,11 +443,10 @@ end
 
 -- ── missing-blessing check ──────────────────────────────────────────────────
 local function unitHasBlessing(unit, blessing)
-    if not UnitBuff then return false end
     local normalTex = C.BLESSING_ICONS[blessing] and string.lower(C.BLESSING_ICONS[blessing])
     local greaterPat = "greaterblessingof" .. blessing
     for b = 1, 32 do
-        local tex = UnitBuff(unit, b)
+        local tex = TB.BuffIcon(unit, b)
         if not tex then break end
         local lower = string.lower(tex)
         if (normalTex and lower == normalTex) or string.find(lower, greaterPat, 1, true) then
@@ -483,13 +482,13 @@ function TB.ComputeMissingBlessings()
                     table.insert(lacking, b)
                 end
             end
-            if table.getn(lacking) > 0 then
+            if #lacking > 0 then
                 table.insert(missing, { name = m.name, classId = m.classId, blessings = lacking })
             end
         end
     end
     if not hasOrders then return "" end
-    if table.getn(missing) == 0 then return "All ordered blessings active." end
+    if #missing == 0 then return "All ordered blessings active." end
     return "Missing:"
 end
 
@@ -606,7 +605,7 @@ local function renderMemberPicker()
     local picker = win and win.memberPicker
     if not picker then return end
     local members = groupMembers()
-    local count = math.min(table.getn(members), MAX_PICK_MEMBERS)
+    local count = math.min(#members, MAX_PICK_MEMBERS)
     local cols = math.min(PICK_COLS, math.max(1, count))
     local rows = math.max(1, math.ceil(count / PICK_COLS))
     picker:SetWidth(cols * PICK_STEP_X + 14)
@@ -614,7 +613,7 @@ local function renderMemberPicker()
     for i, btn in ipairs(picker.buttons) do
         local m = members[i]
         if i <= count and m then
-            local col = math.mod(i - 1, PICK_COLS)
+            local col = math.fmod(i - 1, PICK_COLS)
             local row = math.floor((i - 1) / PICK_COLS)
             btn:ClearAllPoints()
             btn:SetPoint("TOPLEFT", picker, "TOPLEFT", 8 + col * PICK_STEP_X, -22 - row * PICK_STEP_Y)
@@ -654,7 +653,7 @@ local function shortAuraLabel(value)
 end
 
 local function createCell(parent)
-    local cell = CreateFrame("Button", nil, parent)
+    local cell = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     cell:SetWidth(CELL_W - 4); cell:SetHeight(CELL_H)
     cell:EnableMouse(true)
     cell:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -671,27 +670,27 @@ local function createCell(parent)
     local hl = cell:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(cell)
     hl:SetTexture(1, 1, 1, 0.15)
-    cell:SetScript("OnEnter", function()
-        local snapshot = TB.GetBlessings(this.bot)
-        local val = snapshot and snapshot.classes[this.word]
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:SetText((this.bot or "") .. " → " .. (this.className or ""))
+    cell:SetScript("OnEnter", function(self, motion)
+        local snapshot = TB.GetBlessings(self.bot)
+        local val = snapshot and snapshot.classes[self.word]
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText((self.bot or "") .. " → " .. (self.className or ""))
         GameTooltip:AddLine("Now: " .. (FULL_BLESSING[val] or TB.BlessingLabel(val)), 0.9, 0.9, 0.9, 1)
         GameTooltip:AddLine("Left-click: next · Right-click: previous", 0.62, 0.60, 0.56, 1)
         GameTooltip:AddLine("Auto lets the paladin choose.", 0.62, 0.60, 0.56, 1)
         GameTooltip:Show()
     end)
-    cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    cell:SetScript("OnClick", function()
-        if this.bot and this.word then
-            TB.CycleBlessing(this.bot, this.word, arg1 == "RightButton" and -1 or 1)
+    cell:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    cell:SetScript("OnClick", function(self, button)
+        if self.bot and self.word then
+            TB.CycleBlessing(self.bot, self.word, button == "RightButton" and -1 or 1)
         end
     end)
     return cell
 end
 
 local function createAuraCell(parent)
-    local cell = CreateFrame("Button", nil, parent)
+    local cell = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     cell:SetWidth(AURA_W - 4); cell:SetHeight(CELL_H)
     cell:EnableMouse(true)
     cell:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -705,47 +704,47 @@ local function createAuraCell(parent)
     local hl = cell:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(cell)
     hl:SetTexture(1, 1, 1, 0.15)
-    cell:SetScript("OnEnter", function()
-        local snap = TB.GetChoice and TB.GetChoice(this.bot, "aura")
+    cell:SetScript("OnEnter", function(self, motion)
+        local snap = TB.GetChoice and TB.GetChoice(self.bot, "aura")
         local val = snap and snap.value
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:SetText((this.bot or "") .. " → Aura")
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText((self.bot or "") .. " → Aura")
         GameTooltip:AddLine("Now: " .. (TB.ChoiceLabel and TB.ChoiceLabel("aura", val) or "?"), 0.9, 0.9, 0.9, 1)
         GameTooltip:AddLine("Left-click: next · Right-click: previous", 0.62, 0.60, 0.56, 1)
         GameTooltip:Show()
     end)
-    cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    cell:SetScript("OnClick", function()
-        if this.bot then cycleAura(this.bot, arg1 == "RightButton" and -1 or 1) end
+    cell:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    cell:SetScript("OnClick", function(self, button)
+        if self.bot then cycleAura(self.bot, button == "RightButton" and -1 or 1) end
     end)
     return cell
 end
 
 local function setBtnTooltip(btn, title, line)
-    btn:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    btn:SetScript("OnEnter", function(self, motion)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title)
         GameTooltip:AddLine(line, 0.9, 0.9, 0.9, 1)
         GameTooltip:Show()
     end)
-    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    btn:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
 local function createExcCell(parent)
     local cell = createCell(parent)
-    cell:SetScript("OnEnter", function()
-        local snapshot = TB.GetBlessings(this.bot)
-        local val = (snapshot and snapshot.players and snapshot.players[this.playerName]) or "auto"
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:SetText((this.bot or "") .. " → " .. (this.playerName or ""))
+    cell:SetScript("OnEnter", function(self, motion)
+        local snapshot = TB.GetBlessings(self.bot)
+        local val = (snapshot and snapshot.players and snapshot.players[self.playerName]) or "auto"
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText((self.bot or "") .. " → " .. (self.playerName or ""))
         GameTooltip:AddLine("Now: " .. (FULL_BLESSING[val] or TB.BlessingLabel(val)), 0.9, 0.9, 0.9, 1)
         GameTooltip:AddLine("Left-click: next · Right-click: previous", 0.62, 0.60, 0.56, 1)
         GameTooltip:AddLine("Auto removes this exception.", 0.62, 0.60, 0.56, 1)
         GameTooltip:Show()
     end)
-    cell:SetScript("OnClick", function()
-        if this.bot and this.playerName then
-            TB.CycleBlessingPlayer(this.bot, this.playerName, arg1 == "RightButton" and -1 or 1)
+    cell:SetScript("OnClick", function(self, button)
+        if self.bot and self.playerName then
+            TB.CycleBlessingPlayer(self.bot, self.playerName, button == "RightButton" and -1 or 1)
         end
     end)
     return cell
@@ -761,7 +760,7 @@ local function makeToolbarButton(parent, label, width, x, tip)
 end
 
 local function createWindow()
-    win = CreateFrame("Frame", "TortoiseBotsManagerBlessings", TB.frame or UIParent)
+    win = CreateFrame("Frame", "TortoiseBotsManagerBlessings", TB.frame or UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     win:SetWidth(340); win:SetHeight(180)
     win:SetFrameStrata("DIALOG")
     win:EnableMouse(true)
@@ -776,25 +775,25 @@ local function createWindow()
 
     local close = CreateFrame("Button", nil, win, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -7, -6)
-    close:SetScript("OnClick", function() TB.CloseBlessings() end)
+    close:SetScript("OnClick", function(self, button) TB.CloseBlessings() end)
 
     win.autoBtn = makeToolbarButton(win, "Auto assign", 86, PAD,
         "Spreads trained blessings across paladins for each class.")
-    win.autoBtn:SetScript("OnClick", function() TB.ApplyAutoBlessings() end)
+    win.autoBtn:SetScript("OnClick", function(self, button) TB.ApplyAutoBlessings() end)
     win.clearBtn = makeToolbarButton(win, "Clear", 54, PAD + 92,
         "Resets every class cell and all player exceptions back to Auto.")
-    win.clearBtn:SetScript("OnClick", function() TB.ClearBlessings() end)
+    win.clearBtn:SetScript("OnClick", function(self, button) TB.ClearBlessings() end)
     win.refreshBtn = makeToolbarButton(win, "Refresh", 66, PAD + 152,
         "Re-asks the server and checks who is missing a blessing.")
-    win.refreshBtn:SetScript("OnClick", function()
+    win.refreshBtn:SetScript("OnClick", function(self, button)
         for k in pairs(openExceptions) do openExceptions[k] = nil end
         TB.RequestBlessings()
         TB.RefreshMissingBlessings()
     end)
 
     win.heads = {}
-    for i = 1, table.getn(C.BLESSING_CLASSES) do
-        local head = CreateFrame("Button", nil, win)
+    for i = 1, #C.BLESSING_CLASSES do
+        local head = CreateFrame("Button", nil, win, BackdropTemplateMixin and "BackdropTemplate" or nil)
         head:SetWidth(CELL_W - 4); head:SetHeight(32)
         head.icon = head:CreateTexture(nil, "ARTWORK")
         head.icon:SetWidth(18); head.icon:SetHeight(18)
@@ -803,12 +802,12 @@ local function createWindow()
         head.label:SetPoint("BOTTOM", head, "BOTTOM", 0, 0)
         head.label:SetWidth(CELL_W - 4)
         head.label:SetJustifyH("CENTER")
-        head:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-            GameTooltip:SetText(this.className or "")
+        head:SetScript("OnEnter", function(self, motion)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.className or "")
             GameTooltip:Show()
         end)
-        head:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        head:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         win.heads[i] = head
     end
 
@@ -822,7 +821,7 @@ local function createWindow()
         local row = { cells = {} }
         row.name = win:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         row.name:SetWidth(NAME_W - 4); row.name:SetJustifyH("LEFT")
-        for c = 1, table.getn(C.BLESSING_CLASSES) do
+        for c = 1, #C.BLESSING_CLASSES do
             row.cells[c] = createCell(win)
         end
         row.aura = createAuraCell(win)
@@ -850,14 +849,14 @@ local function createWindow()
     win.excAddTargetBtn:SetText("Add target")
     setBtnTooltip(win.excAddTargetBtn, "Add target",
         "Adds an exception row for your current group target.")
-    win.excAddTargetBtn:SetScript("OnClick", function() TB.AddTargetException() end)
+    win.excAddTargetBtn:SetScript("OnClick", function(self, button) TB.AddTargetException() end)
 
     win.excAddMemberBtn = TB.StyleButton(CreateFrame("Button", nil, win, "UIPanelButtonTemplate"))
     win.excAddMemberBtn:SetWidth(86); win.excAddMemberBtn:SetHeight(18)
     win.excAddMemberBtn:SetText("Add member")
     setBtnTooltip(win.excAddMemberBtn, "Add member",
         "Pick a group member from a list to add an exception row.")
-    win.excAddMemberBtn:SetScript("OnClick", function() toggleMemberPicker(this) end)
+    win.excAddMemberBtn:SetScript("OnClick", function(self, button) toggleMemberPicker(self) end)
 
     win.excEmpty = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     win.excEmpty:SetText("None — click Add target or Add member to override one character.")
@@ -885,13 +884,13 @@ local function createWindow()
         erow.remove:SetText("x")
         setBtnTooltip(erow.remove, "Remove exceptions",
             "Clears this character's exceptions on all paladins.")
-        erow.remove:SetScript("OnClick", function()
-            if this.playerName then TB.RemovePlayerExceptions(this.playerName) end
+        erow.remove:SetScript("OnClick", function(self, button)
+            if self.playerName then TB.RemovePlayerExceptions(self.playerName) end
         end)
         win.excRows[i] = erow
     end
 
-    local picker = CreateFrame("Frame", "TortoiseBotsManagerBlessingMemberPicker", win)
+    local picker = CreateFrame("Frame", "TortoiseBotsManagerBlessingMemberPicker", win, BackdropTemplateMixin and "BackdropTemplate" or nil)
     picker:SetFrameStrata("FULLSCREEN_DIALOG")
     picker:EnableMouse(true)
     TB.ApplySurface(picker, "window")
@@ -903,8 +902,8 @@ local function createWindow()
     for i = 1, MAX_PICK_MEMBERS do
         local b = TB.StyleButton(CreateFrame("Button", nil, picker, "UIPanelButtonTemplate"))
         b:SetWidth(PICK_BTN_W); b:SetHeight(PICK_BTN_H)
-        b:SetScript("OnClick", function()
-            if this.memberName then TB.AddExceptionPlayer(this.memberName) end
+        b:SetScript("OnClick", function(self, button)
+            if self.memberName then TB.AddExceptionPlayer(self.memberName) end
         end)
         picker.buttons[i] = b
     end
@@ -954,7 +953,7 @@ end
 function TB.RefreshBlessings()
     if not win or not win:IsVisible() then return end
     local paladins, present = TB.GetBlessingGroup()
-    if not TB.HasBlessingCapability() or table.getn(paladins) == 0 then
+    if not TB.HasBlessingCapability() or #paladins == 0 then
         TB.CloseBlessings()
         return
     end
@@ -964,8 +963,8 @@ function TB.RefreshBlessings()
     for _, cls in ipairs(C.BLESSING_CLASSES) do
         if present[cls.id] then table.insert(columns, cls) end
     end
-    local colCount = table.getn(columns)
-    local rowCount = math.min(table.getn(paladins), MAX_ROWS)
+    local colCount = #columns
+    local rowCount = math.min(#paladins, MAX_ROWS)
     local auraSpace = showAura and AURA_W or 0
     local gridW = PAD * 2 + NAME_W + colCount * CELL_W + auraSpace
     local excW = showPlayers and (PAD * 2 + NAME_W + rowCount * CELL_W + 24) or 0
@@ -1054,7 +1053,7 @@ function TB.RefreshBlessings()
         local x, limit, shown = PAD + 54, width - PAD - 60, 0
         for i, m in ipairs(isMissing and cachedMissing or {}) do
             local nameWidth = string.len(m.name) * 5.5
-            local need = nameWidth + table.getn(m.blessings) * 16 + 14
+            local need = nameWidth + #m.blessings * 16 + 14
             if x + need > limit then break end
             local entry = win.missingEntries[i]
             if not entry then
@@ -1083,15 +1082,15 @@ function TB.RefreshBlessings()
                 icon:Show()
                 x = x + 16
             end
-            for k = table.getn(m.blessings) + 1, table.getn(entry.icons) do entry.icons[k]:Hide() end
+            for k = #m.blessings + 1, #entry.icons do entry.icons[k]:Hide() end
             x = x + 10
             shown = i
         end
-        for i = shown + 1, table.getn(win.missingEntries) do
+        for i = shown + 1, #win.missingEntries do
             win.missingEntries[i].name:Hide()
             for _, icon in ipairs(win.missingEntries[i].icons) do icon:Hide() end
         end
-        local rest = (isMissing and table.getn(cachedMissing) or 0) - shown
+        local rest = (isMissing and #cachedMissing or 0) - shown
         if rest > 0 then
             win.missingMore:ClearAllPoints()
             win.missingMore:SetPoint("TOPLEFT", win, "TOPLEFT", x, -y)
@@ -1123,7 +1122,7 @@ function TB.RefreshBlessings()
         win.excAddMemberBtn:Show()
         y = y + 22
         local exPlayers = TB.CollectExceptionPlayers()
-        local excCount = math.min(table.getn(exPlayers), MAX_EXCEPTIONS)
+        local excCount = math.min(#exPlayers, MAX_EXCEPTIONS)
         if excCount == 0 then
             win.excEmpty:ClearAllPoints()
             win.excEmpty:SetPoint("TOPLEFT", win, "TOPLEFT", PAD, -y)
@@ -1263,14 +1262,14 @@ end
 
 -- A changed group re-asks once things settle, while the window is open.
 local dueAt
-local watcher = CreateFrame("Frame", "TortoiseBotsManagerBlessingWatcher")
+local watcher = CreateFrame("Frame", "TortoiseBotsManagerBlessingWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
 watcher:RegisterEvent("PARTY_MEMBERS_CHANGED")
 watcher:RegisterEvent("RAID_ROSTER_UPDATE")
-watcher:SetScript("OnEvent", function()
+watcher:SetScript("OnEvent", function(self, event, ...)
     if win and win:IsVisible() then dueAt = now() + 1 end
     if TB.UpdateBlessingButton then TB.UpdateBlessingButton() end
 end)
-watcher:SetScript("OnUpdate", function()
+watcher:SetScript("OnUpdate", function(self, elapsed)
     if not dueAt or now() < dueAt then return end
     dueAt = nil
     if win and win:IsVisible() then
