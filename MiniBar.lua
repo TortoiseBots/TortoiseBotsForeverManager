@@ -659,12 +659,28 @@ end
 
 function TB.RefreshMiniBar()
     if not bar or not bar:IsVisible() then return end
+    local F = TB.Forever
     for _, b in ipairs(bar.favButtons) do
         if b.def then
             paintLamp(b.lamp, b.def)
             setUsable(b, usable(b.def))
             paintKey(b.key, b.slot)
             paintFeedback(b, b.def)
+            if F then
+                if F.Native() then
+                    F.RestoreAvailable(b)
+                else
+                    local intent = b.def.intent or ""
+                    local cmd = (intent == "downtime" or string.sub(intent, 1, 9) == "strategy "
+                        or string.sub(intent, 1, 6) == "totem " or string.sub(intent, 1, 10) == "formation "
+                        or string.sub(intent, 1, 9) == "behavior ") and intent or ("action " .. intent)
+                    if not F.Available(cmd) then
+                        F.MarkUnavailable(b, nil, b.def.tip)
+                    else
+                        F.RestoreAvailable(b)
+                    end
+                end
+            end
         elseif b.key then
             b.key:Hide()
         end

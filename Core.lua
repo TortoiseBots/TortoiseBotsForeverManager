@@ -47,6 +47,9 @@ function TB.RefreshVersionLine()
     if TB.IsNewerVersion(TB.latestModule, TB.serverVersion) then
         text = text .. "  ·  |cffff9933bots update v" .. TB.latestModule .. "|r"
     end
+    if TB.Forever and not TB.Forever.Native() then
+        text = "|cffffd200WIP: TortoiseBotsForever bridge|r - some features are not available yet"
+    end
     if TB.versionLine and TB.versionLine.SetText then
         TB.versionLine:SetText(text)
     end

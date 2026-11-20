@@ -165,15 +165,24 @@ function F.Send(cmd)
 end
 
 -- Show a control as not available yet: greyed, with the WIP tooltip.
-function F.MarkUnavailable(control, title)
+function F.MarkUnavailable(control, title, extraTip)
     if not control then return end
+    if not control._foreverMarked then
+        control._foreverOrigOnEnter = control.GetScript and control:GetScript("OnEnter") or nil
+        control._foreverOrigOnLeave = control.GetScript and control:GetScript("OnLeave") or nil
+        control._foreverMarked = true
+    end
     if control.Disable then control:Disable() end
     if control.SetMotionScriptsWhileDisabled then control:SetMotionScriptsWhileDisabled(true) end
+    local tip = extraTip or control._tbTipText or (control.toggle and control.toggle.tip) or nil
     control:SetScript("OnEnter", function(self)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(title or F.WIP_TITLE, 1, 0.82, 0)
         GameTooltip:AddLine(F.WIP_TEXT, 0.8, 0.8, 0.8, true)
+        if tip and tip ~= "" then
+            GameTooltip:AddLine(tip, 0.65, 0.65, 0.65, true)
+        end
         GameTooltip:Show()
     end)
     control:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -357,4 +366,34 @@ function F.ShouldHideChatMessage(event, message, sender)
     end
 
     return false
+end
+
+-- Restore a control that was marked unavailable once the server supports it.
+function F.RestoreAvailable(control)
+    if not control or not control._foreverMarked then return end
+    control._foreverMarked = nil
+    if control.Enable then control:Enable() end
+    if control._foreverOrigOnEnter then
+        control:SetScript("OnEnter", control._foreverOrigOnEnter)
+    elseif control._tbTipText and TB.UI and TB.UI.SetTooltip then
+        TB.UI.SetTooltip(control, control._tbTipText, control._tbTipTitle)
+    else
+        control:SetScript("OnEnter", nil)
+    end
+    if control._foreverOrigOnLeave then
+        control:SetScript("OnLeave", control._foreverOrigOnLeave)
+    elseif not (control._tbTipText and TB.UI and TB.UI.SetTooltip) then
+        control:SetScript("OnLeave", nil)
+    end
+    control._foreverOrigOnEnter = nil
+    control._foreverOrigOnLeave = nil
+end
+
+function F.GateControl(control, cmd, title, extraTip)
+    if not control then return end
+    if F.Available(cmd) then
+        F.RestoreAvailable(control)
+    else
+        F.MarkUnavailable(control, title, extraTip)
+    end
 end
