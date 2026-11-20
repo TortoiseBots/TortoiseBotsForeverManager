@@ -146,7 +146,7 @@ function F.Available(cmd)
     return F.Translate(cmd) ~= nil
 end
 
--- Send a translated line. Client 70707 blocks SendChatMessage to SAY from
+-- Send a translated line. The client blocks SendChatMessage to SAY from
 -- addon code, so the line goes as a whisper to yourself: the server runs a
 -- dot command from any chat line before it is delivered. Must run from a
 -- click (a timer or an event may still be blocked).

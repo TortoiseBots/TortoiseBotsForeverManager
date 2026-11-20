@@ -7,14 +7,16 @@
 > [TortoiseBotsForever](https://github.com/TortoiseBots/TortoiseBotsForever), is still being ported, so the addon
 > greys out everything the server cannot do yet. Hover a grey button: it says **Not currently available**.
 
-The in-game control panel (`/tbfm`) for **TortoiseBotsForever**, the bots for **WoW Forever** (client 1.60.1,
-interface 16001). It is TortoiseBotsManager, the panel of the Tortoise WoW 1.18.1 bots, ported to the modern
-WoW Forever client.
+The in-game control panel (`/tbfm`) for **TortoiseBotsForever**, the bots for **ForeverCore**, a community-made,
+TrinityCore-based server emulator that the WoW Forever client connects to. It is TortoiseBotsManager, the panel of
+the Tortoise WoW bots, ported to that client.
 
-This addon only works on a server that runs the **TortoiseBotsForever** module. Problems, bugs and requests go to
+The bots live in the server, so this addon only works on a ForeverCore server that runs the **TortoiseBotsForever**
+module. It does **not** work on, and is not meant for, any official Blizzard server. Problems, bugs and requests go to
 [TortoiseBotsForever](https://github.com/TortoiseBots/TortoiseBotsForever) too.
 
-This is an unofficial, community project made for educational purposes, not affiliated with Blizzard Entertainment.
+This is an unofficial, community project made for educational purposes, not affiliated with Blizzard Entertainment
+or the WoW Forever project.
 
 ## What works today
 
