@@ -67,7 +67,11 @@ return function(ctx)
     assert(F.Translate("role Alpha healer") == ".tb role Alpha healer")
     assert(F.Translate("role Alpha dps") == ".tb role Alpha dps")
     assert(F.Translate("role Alpha none") == ".tb role Alpha none")
-    assert(F.Translate("role self tank") == nil)
+    assert(F.Translate("role self tank") == ".tb role tank")
+    assert(F.Translate("role self healer") == ".tb role healer")
+    assert(F.Translate("role self bogus") == nil)
+    assert(F.Translate("command Alpha d equip upgrades") == ".tb gear Alpha upgrade")
+    assert(F.Translate("command Alpha d something else") == nil)
 
     -- Unknown / unsupported -> nil
     for _, unk in ipairs({ "action stop", "action flee", "roster", "alts", "", "unknowncmd Alpha" }) do

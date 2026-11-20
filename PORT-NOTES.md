@@ -34,8 +34,8 @@ While the server has not sent `TBM:CAPS`:
 |---|---|
 | Attack, Pull | `.tb order <scope> attack my` / `pull my` (the pull timer is dropped) |
 | End pull, Follow, Stay, Come, Free, Release | `.tb order <scope> endpull` / `follow` / `stay` / `come` / `free` / `release` |
-| Bot role tank / healer / DPS | `.tb role <bot> tank` / `healer` / `dps` |
-| Auto-gear (bot panel) | `.tb gear <bot> upgrade` |
+| Bot role tank / healer / DPS (a bot, or yourself) | `.tb role <bot> tank` / `healer` / `dps`, `.tb role <word>` for yourself |
+| Auto-gear, Equip upgrades (bot panel) | `.tb gear <bot> upgrade` |
 | Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |
 
 - `<scope>` is the targeted party bot, else `party <you>`.

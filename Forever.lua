@@ -151,10 +151,15 @@ function F.Translate(cmd)
     end
 
     local name, extra = string.match(rest, "^(%S+)%s*(.*)$")
-    if verb == "role" and name and name ~= "self" then
+    if verb == "role" and name then
         local word = ROLE_WORDS[string.lower(extra or "")]
-        if word then return ".tb role " .. name .. " " .. word end
-        return nil
+        if not word then return nil end
+        -- No name: the sender's own character (its role is stored for the live side).
+        if name == "self" then return ".tb role " .. word end
+        return ".tb role " .. name .. " " .. word
+    end
+    if verb == "command" and name and string.lower(extra or "") == "d equip upgrades" then
+        return ".tb gear " .. name .. " upgrade"
     end
     if not name or name == "" then return nil end
     local player = me()
