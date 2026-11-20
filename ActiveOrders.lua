@@ -230,7 +230,7 @@ local function createWindow()
     scroll:SetWidth(AW - 28)
     scroll:SetHeight(ROW_N * ROW_H + 4)
     scroll:SetScript("OnVerticalScroll", function(self, offset)
-        FauxScrollFrame_OnVerticalScroll(ROW_H, TB.RefreshActiveOrders)
+        FauxScrollFrame_OnVerticalScroll(self, offset, ROW_H, TB.RefreshActiveOrders)
     end)
     win.scroll = scroll
 
@@ -304,7 +304,7 @@ local function createWindow()
     stepScroll:SetWidth(AW - 28)
     stepScroll:SetHeight(STEP_N * STEP_H)
     stepScroll:SetScript("OnVerticalScroll", function(self, offset)
-        FauxScrollFrame_OnVerticalScroll(STEP_H, refreshSteps)
+        FauxScrollFrame_OnVerticalScroll(self, offset, STEP_H, refreshSteps)
     end)
     win.stepScroll = stepScroll
     win.stepRows = {}

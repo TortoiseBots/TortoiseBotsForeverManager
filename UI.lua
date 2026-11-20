@@ -187,7 +187,7 @@ local function openRowMenu(menuName, build)
             self:Hide()
         end)
         catcher:SetScript("OnUpdate", function(self, elapsed)
-            if not DropDownList1:IsVisible() then self:Hide() end
+            if not (DropDownList1 and DropDownList1.IsVisible and DropDownList1:IsVisible()) then self:Hide() end
         end)
         TB._menuCatcher = catcher
     end
@@ -854,7 +854,7 @@ CreateScroll = function(parent)
     -- inside the content width so the bar never leaves the window.
     scroll:SetWidth(W - (C.PAD or 10) * 2 - 22)
     scroll:SetHeight(ROW_N * ROW_H + 4)
-    scroll:SetScript("OnVerticalScroll", function(self, offset) FauxScrollFrame_OnVerticalScroll(ROW_H, TB.Refresh) end)
+    scroll:SetScript("OnVerticalScroll", function(self, offset) FauxScrollFrame_OnVerticalScroll(self, offset, ROW_H, TB.Refresh) end)
     TB.scroll = scroll
 
     local rows = {}
@@ -1916,10 +1916,14 @@ function TB.InitUI()
             row:SetScript("OnMouseUp", function(self, button)
                 if button and button ~= "LeftButton" then return end
                 if not row.partyUnit or row.partyUnit == "player" then return end
+                if InCombatLockdown and InCombatLockdown() then
+                    if TB.SetStatus then TB.SetStatus("Cannot target from the party list in combat.", "warn") end
+                    return
+                end
                 if TargetUnit then
-                    TargetUnit(row.partyUnit)
+                    pcall(TargetUnit, row.partyUnit)
                 elseif TargetByName and row.partyName then
-                    TargetByName(row.partyName, true)
+                    pcall(TargetByName, row.partyName, true)
                 end
                 if TB.Refresh then TB.Refresh() end
             end)
@@ -2207,7 +2211,7 @@ end
         scroll:SetWidth(W - (C.PAD or 10) * 2 - 22)
         scroll:SetHeight(GUILD_ROW_N * GUILD_ROW_H + 4)
         scroll:SetScript("OnVerticalScroll", function(self, offset)
-            FauxScrollFrame_OnVerticalScroll(GUILD_ROW_H, TB.RefreshGuildView)
+            FauxScrollFrame_OnVerticalScroll(self, offset, GUILD_ROW_H, TB.RefreshGuildView)
         end)
         guildFrame.scroll = scroll
 
@@ -2591,7 +2595,7 @@ end
         scroll:SetWidth(W - (C.PAD or 10) * 2 - 22)
         scroll:SetHeight(LOG_ROW_N * LOG_ROW_H + 4)
         scroll:SetScript("OnVerticalScroll", function(self, offset)
-            FauxScrollFrame_OnVerticalScroll(LOG_ROW_H, TB.RefreshLogView)
+            FauxScrollFrame_OnVerticalScroll(self, offset, LOG_ROW_H, TB.RefreshLogView)
         end)
         TB.logScroll = scroll
 

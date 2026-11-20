@@ -601,11 +601,11 @@ function TB.ProfessionMissingSourceText(missing)
 end
 
 -- ── item helpers ────────────────────────────────────────────────────────────
--- Vanilla GetItemInfo: name, link ("item:id:0:0:0"), quality, level, type,
--- subtype, stack, equipLoc, texture. Nil until the client cached the item.
+-- Modern Classic GetItemInfo: name, link, quality, itemLevel, minLevel, type,
+-- subType, stackCount, equipLoc, texture. Nil until the client cached the item.
 local function itemInfo(id)
     if not id or not GetItemInfo then return nil end
-    local name, link, quality, _, _, _, _, _, texture = GetItemInfo(id)
+    local name, link, quality, _, _, _, _, _, _, texture = GetItemInfo(id)
     return name, link, quality, texture
 end
 
@@ -646,10 +646,19 @@ local function chatLink(id)
     return (hex or "|cffffffff") .. "|H" .. link .. "|h[" .. name .. "]|h|r"
 end
 
+local function insertChatLink(link)
+    if not link then return end
+    if ChatEdit_InsertLink then
+        ChatEdit_InsertLink(link)
+    elseif ChatFrameEditBox and ChatFrameEditBox.IsVisible and ChatFrameEditBox:IsVisible() then
+        ChatFrameEditBox:Insert(link)
+    end
+end
+
 local bagSlotsCache = {}
 local function isBagItem(id)
     if not id or not GetItemInfo then return false end
-    local _, _, _, _, itemType, _, _, equipLoc = GetItemInfo(id)
+    local _, _, _, _, _, itemType, _, _, equipLoc = GetItemInfo(id)
     return equipLoc == "INVTYPE_BAG" or itemType == "Container" or itemType == "Quiver"
 end
 
@@ -689,7 +698,7 @@ function TB.FindPlayerBags()
                 local _, _, idText = string.find(link, "item:(%d+)")
                 local id = idText and tonumber(idText) or nil
                 if id and isBagItem(id) then
-                    local name, _, quality, _, _, _, _, _, texture = GetItemInfo(id)
+                    local name, _, quality, _, _, _, _, _, _, texture = GetItemInfo(id)
                     local locked = false
                     if TB.BagInfo then
                         local _, _, isLocked = TB.BagInfo(bag, slot)
@@ -789,7 +798,7 @@ end
 local function equipOptionsForItem(id, botName)
     local equipLoc = nil
     if id and GetItemInfo then
-        local _, _, _, _, _, _, _, loc = GetItemInfo(id)
+        local _, _, _, _, _, _, _, _, loc = GetItemInfo(id)
         equipLoc = loc
     end
     if equipLoc == "INVTYPE_WEAPON" then
@@ -1178,10 +1187,7 @@ local function createItemButton(parent)
         local entry = self.entry
         if not entry or not entry.id then return end
         if IsShiftKeyDown and IsShiftKeyDown() then
-            local link = chatLink(entry.id)
-            if link and ChatFrameEditBox and ChatFrameEditBox.IsVisible and ChatFrameEditBox:IsVisible() then
-                ChatFrameEditBox:Insert(link)
-            end
+            insertChatLink(chatLink(entry.id))
             return
         end
         if itemMenu.owner == self and itemMenu:IsVisible() then hideMenu() return end
@@ -1272,10 +1278,7 @@ local function createEquippedBagButton(parent, slotId, index)
     b:SetScript("OnClick", function(self, button)
         local entry = self.entry
         if entry and entry.id and IsShiftKeyDown and IsShiftKeyDown() then
-            local link = chatLink(entry.id)
-            if link and ChatFrameEditBox and ChatFrameEditBox.IsVisible and ChatFrameEditBox:IsVisible() then
-                ChatFrameEditBox:Insert(link)
-            end
+            insertChatLink(chatLink(entry.id))
             return
         end
         if currentBot then

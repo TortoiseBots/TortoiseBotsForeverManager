@@ -5,11 +5,14 @@ max_code_line_length = false
 max_string_line_length = false
 -- WoW Forever 1.60.1 client API and our addon entry points (PORT-NOTES.md).
 read_globals = {
+    "C_ChatInfo",
     "CanEditOfficerNote",
+    "ChatEdit_InsertLink",
     "ClickSendMailItemButton",
     "GetZoneText",
     "GuildControlGetNumRanks",
     "GuildControlGetRankName",
+    "InCombatLockdown",
     "MailFrame",
     "MailFrameTab_OnClick",
     "RaidWarningFrame",

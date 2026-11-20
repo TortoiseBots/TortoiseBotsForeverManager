@@ -365,8 +365,13 @@ function TB.SendBotCommand(cmd, opts)
             TB.FakeServerSend(cmd)
         elseif channel then
             TB.SendAddonMessageCompat((C and C.ADDON_PREFIX) or "TBM", cmd, channel)
-        elseif SendChatMessage then
-            SendChatMessage(full)
+        else
+            local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+            local player = UnitName and UnitName("player") or nil
+            local ok = send and player and pcall(send, full, "WHISPER", nil, player)
+            if not ok and send and TB.SetStatus then
+                TB.SetStatus("Could not send: type " .. full .. " in chat.", "warn")
+            end
         end
         TB.lastCommand   = cmd
         TB.lastCommandAt = lastSend

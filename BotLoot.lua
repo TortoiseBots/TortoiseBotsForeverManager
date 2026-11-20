@@ -724,7 +724,7 @@ function TB.CreateLootTab(parent)
     scroll:SetWidth(rowW)
     scroll:SetHeight(LOOT_ROW_N * LOOT_ROW_H + 4)
     scroll:SetScript("OnVerticalScroll", function(self, offset)
-        FauxScrollFrame_OnVerticalScroll(LOOT_ROW_H, TB.RefreshLootView)
+        FauxScrollFrame_OnVerticalScroll(self, offset, LOOT_ROW_H, TB.RefreshLootView)
     end)
     TB.lootScroll = scroll
 
@@ -854,7 +854,7 @@ function TB.RefreshLootView()
                 local id = tonumber(entry.itemId)
                 local itemQuality, texture
                 if id and GetItemInfo then
-                    local _, _, q, _, _, _, _, _, tex = GetItemInfo(id)
+                    local _, _, q, _, _, _, _, _, _, tex = GetItemInfo(id)
                     itemQuality, texture = q, tex
                 end
                 row.itemIcon:SetTexture(texture or UNKNOWN_ICON)
