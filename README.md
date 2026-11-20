@@ -14,7 +14,7 @@ WoW Forever client.
 This addon only works on a server that runs the **TortoiseBotsForever** module. Problems, bugs and requests go to
 [TortoiseBotsForever](https://github.com/TortoiseBots/TortoiseBotsForever) too.
 
-This is an unofficial, community project, not affiliated with Blizzard Entertainment.
+This is an unofficial, community project made for educational purposes, not affiliated with Blizzard Entertainment.
 
 ## What works today
 
