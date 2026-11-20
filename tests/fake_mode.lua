@@ -1,4 +1,4 @@
--- Offline fake server (/tbmf fake) checks.
+-- Offline fake server (/tbfm fake) checks.
 -- Run from tests/regression.lua like the other suites: the canvas, roster,
 -- inventory and order parsers must accept the canned wire lines, and no line
 -- may reach chat while fake mode is on.

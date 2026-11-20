@@ -31,7 +31,7 @@ Direction follows the player: **C→S** is the addon asking, **S→C** is the mo
   failures and non-protocol lines stay visible.
 - Addon messages are throttled by the client (about ten at once, then one per second).
   The port retries a line refused with result code 3 (`AddonMessageThrottle`) or 8
-  (`ChannelThrottle`) once per second, five times, and traces the give-up in `/tbmf on`.
+  (`ChannelThrottle`) once per second, five times, and traces the give-up in `/tbfm trace`.
 - The addon throttles itself: one request per `C.SEND_DELAY` = 0.35 s, rest queued in order.
 
 ## 2. Field conventions

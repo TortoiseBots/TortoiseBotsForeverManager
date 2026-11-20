@@ -1,12 +1,12 @@
 -- TortoiseBotsForeverManager/FakeServer.lua
 -- Offline testing for the port (there is no TortoiseBots Forever server yet).
 --
---   /tbmf on|off     trace: print every addon message sent (>) and received (<)
---   /tbmf fake       toggle the fake server: commands are answered locally with
+--   /tbfm trace      trace: print every addon message sent (>) and received (<)
+--   /tbfm fake       toggle the fake server: commands are answered locally with
 --                    the wire lines of a canned roster, guild bot, party bot,
 --                    inventory, professions and orders, so every tab can be
 --                    clicked without a server (nothing leaves the client)
---   /tbmf status     what is on now
+--   /tbfm status     what is on now
 --
 -- Replies go through TB.OnAddonMessage (prefix TBM, channel PARTY), i.e. the
 -- same parser the real server's replies use; the fake server only replaces the
@@ -175,7 +175,7 @@ function TB.SetFakeServer(on)
     TB.fake.enabled = on and true or false
     if TB.fake.enabled then
         if TB.SetAddonTransport then TB.SetAddonTransport("party") end
-        TB.Print("Fake server on: commands are answered locally (no server traffic). /tbmf fake to turn it off.")
+        TB.Print("Fake server on: commands are answered locally (no server traffic). /tbfm fake to turn it off.")
     else
         TB.Print("Fake server off.")
     end
@@ -185,23 +185,14 @@ end
 
 function TB.FakeCommand(msg)
     msg = string.lower(string.gsub(TB.Trim and TB.Trim(msg or "") or (msg or ""), "%s+", " "))
-    if msg == "on" or msg == "off" then
-        TB.trace = (msg == "on")
-        TB.Print("Trace " .. (TB.trace and "on: every addon message sent (>) and received (<) shows in chat" or "off"))
-    elseif msg == "fake" or msg == "echo" then
+    if msg == "fake" or msg == "echo" then
         TB.SetFakeServer(not TB.fake.enabled)
     elseif msg == "status" or msg == "" then
         TB.Print("trace " .. (TB.trace and "on" or "off") .. " · fake server "
             .. (TB.fake.enabled and "on" or "off") .. " · transport "
             .. ((TB.AddonCommandChannel and TB.AddonCommandChannel()) and "party" or "chat"))
-        TB.Print("/tbmf on|off - message trace, /tbmf fake - offline fake server, /tbmf status")
+        TB.Print("/tbfm trace - message trace, /tbfm fake - offline fake server, /tbfm status")
     else
-        TB.Print("Usage: /tbmf [on|off|fake|status]")
+        TB.Print("Usage: /tbfm [trace|fake|status]")
     end
-end
-
-if SlashCmdList then
-    SlashCmdList["TORTOISEBOTSMANAGERFOREVER"] = function(msg) TB.FakeCommand(msg) end
-    SLASH_TORTOISEBOTSMANAGERFOREVER1 = "/tbmf"
-    SLASH_TORTOISEBOTSMANAGERFOREVER2 = "/tbmforever"
 end

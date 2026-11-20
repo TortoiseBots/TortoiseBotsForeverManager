@@ -7,7 +7,7 @@
 > [TortoiseBotsForever](https://github.com/TortoiseBots/TortoiseBotsForever), is still being ported, so the addon
 > greys out everything the server cannot do yet. Hover a grey button: it says **Not currently available**.
 
-The in-game control panel (`/tbm`) for **TortoiseBotsForever**, the bots for **WoW Forever** (client 1.60.1,
+The in-game control panel (`/tbfm`) for **TortoiseBotsForever**, the bots for **WoW Forever** (client 1.60.1,
 interface 16001). It is TortoiseBotsManager, the panel of the Tortoise WoW 1.18.1 bots, ported to the modern
 WoW Forever client.
 
@@ -51,7 +51,7 @@ The pictures come from the offline preview renderer (`tools/preview`), not from 
 1. Download this repository as a zip (**Code → Download ZIP**).
 2. Extract it into `World of Warcraft/_forever_/Interface/AddOns/` and rename the folder to
    `TortoiseBotsForeverManager`, so the path is `Interface/AddOns/TortoiseBotsForeverManager/TortoiseBotsForeverManager.toc`.
-3. Start the game and type `/tbm`.
+3. Start the game and type `/tbfm`.
 
 After an update, restart the game fully: new addon files load only on a restart, not on `/reload`.
 
@@ -59,10 +59,14 @@ After an update, restart the game fully: new addon files load only on a restart,
 
 | Command | What |
 | :--- | :--- |
-| `/tbm` | Open or close the panel |
-| `/tbmf on` / `off` | Show every message the addon sends and receives in chat |
-| `/tbmf fake` | Offline demo: a fake server answers, nothing leaves the client |
-| `/tbmf status` | Trace, demo and transport state |
+| `/tbfm` | Open or close the panel |
+| `/tbfm mini` / `full` | Small fight bar or the full window |
+| `/tbfm settings` | Window options |
+| `/tbfm resetpos` | Move the window back to the centre |
+| `/tbfm trace` | Show every message the addon sends and receives in chat (again to turn off) |
+| `/tbfm fake` | Offline demo: a fake server answers, nothing leaves the client |
+| `/tbfm status` | Trace, demo and transport state |
+| `/tbfm help` | All commands |
 
 ## For developers
 

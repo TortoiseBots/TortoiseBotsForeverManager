@@ -1,7 +1,7 @@
 TortoiseBotsForeverManager
 ==========================
 
-An in-game control panel (/tbm) for TortoiseBots, ported from the Vanilla 1.12
+An in-game control panel (/tbfm) for TortoiseBots, ported from the Vanilla 1.12
 add-on to the WoW Forever 1.60.1 client (Classic Interface 16001, modern Classic API).
 
 Upstream

@@ -566,7 +566,7 @@ local function createBar()
         savePosition()
     end)
     -- The turtle drags on a left-click and flips the bar's direction on a
-    -- right-click; the same flip is on /tbm minilayout for key users.
+    -- right-click; the same flip is on /tbfm minilayout for key users.
     bar.handle = handle
     handle:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     handle:SetScript("OnClick", function(self, button)
@@ -726,7 +726,7 @@ function TB.GetMode()
     return (TortoiseBotsDB and TortoiseBotsDB.mode == "mini") and "mini" or "full"
 end
 
--- Minimap button and /tbm: show or hide whichever view the mode uses.
+-- Minimap button and /tbfm: show or hide whichever view the mode uses.
 function TB.ToggleMiniBar()
     if not bar then createBar() end
     if bar:IsVisible() then
