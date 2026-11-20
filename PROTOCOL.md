@@ -1,9 +1,13 @@
-# TortoiseBots Manager Forever: addon ↔ server protocol
+# TortoiseBots Forever Manager: addon ↔ server protocol
 
-This is the wire contract between **TortoiseBotsForeverManager** (this addon) and the
-TortoiseBots server module. It is **unchanged from TortoiseBotsManager 2.4.1** on purpose:
-a server module written for the 1.12 manager must talk to the Forever port without edits.
-Only the client API underneath changed (see PORT-NOTES.md).
+> [!NOTE]
+> **Today the TortoiseBotsForever server does not speak this protocol yet.** It only has GM test commands
+> (`.tb <sub>`), so the addon runs in bridge mode: see "Bridge mode" in `PORT-NOTES.md`. This file is the target
+> contract: once the server answers `roster` with `TBM:CAPS`, the addon uses it with no update.
+
+This is the wire contract between **TortoiseBotsForeverManager** (this addon) and the server module. It is the same
+as TortoiseBotsManager 2.4.1, so the server side can reuse the TortoiseBots command layer unchanged. Only the
+client API underneath changed (see `PORT-NOTES.md`).
 
 Direction follows the player: **C→S** is the addon asking, **S→C** is the module answering.
 
@@ -53,9 +57,10 @@ Direction follows the player: **C→S** is the addon asking, **S→C** is the mo
 | `TBM:CAPS|<cap>[,<cap>]…` | capability tokens | Features the module offers; each line replaces the whole set |
 | `TBM:LATEST|<moduleVersion>\|<addonVersion>` | versions or `-` | Newest releases known to the module; drives the update hint |
 
-Capability tokens the addon gates on: `order`, `order-steps`, `guild-order-steps`,
-`professions`, `blessing`, `choice`, `service`, `totem`, `loot-log`, `guild-bots`,
-`altsummary`, `dungeon-run`. An unknown token is ignored.
+Capability tokens the addon gates on: `pull-seconds`, `engage`, `flee`, `inventory`, `claimed-roster`,
+`guild-orders`, `guild-order-nobuy`, `guild-order-steps`, `dungeon-run`, `loot-log`, `downtime`, `choice`,
+`focus-mark`, `blessing`, `blessing-player`, `professions`, `use-object` (`behavior` is advertised but not gated
+on). An unknown token is ignored. The first `TBM:CAPS` line also switches the bridge mode off.
 
 ## 4. Commands (C→S)
 

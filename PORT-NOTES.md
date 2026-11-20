@@ -1,137 +1,102 @@
 # Port notes: TortoiseBotsManager 2.4.1 → TortoiseBotsForeverManager
 
 Target client: **WoW Forever 1.60.1** (`## Interface: 16001`, modern Classic API).
-Base addon: **TortoiseBotsManager v2.4.1** by Sagiroth (MIT), the newest release on
-2026-11-17. The protocol is unchanged (PROTOCOL.md); this file lists every API change,
-what is not portable, and what to ask Sagi before the server module is written.
+Base: **TortoiseBotsManager v2.4.1** (Sagiroth, MIT), ported to the modern client by waterys419.
+Server: **TortoiseBotsForever**, which is still being ported.
 
-## Identity and packaging
+## Status in one minute
 
-| Item | 1.12 addon | Forever port |
+- The addon loads on the modern client and draws every window.
+- The TortoiseBotsForever server does **not** have the addon protocol (`.bot` and the `TBM:` lines) yet.
+  It has GM test commands, `.tb <sub>`.
+- So the addon runs in **bridge mode**: a few buttons are sent as `.tb` commands, everything else is grey with a
+  **Not currently available** tooltip. See "Bridge mode" below.
+- When the server starts answering with `TBM:CAPS`, bridge mode switches off by itself and the addon works as it
+  does on TortoiseBots.
+- Nothing has been tested in the real game client yet; all checks are offline (see "Verified").
+
+## Identity
+
+| Item | 1.12 addon | This port |
 |---|---|---|
-| Folder / addon name | `TortoiseBotsManager` | `TortoiseBotsForeverManager` |
-| `.toc` | `## Interface: 11200` | `## Interface: 16001`, title suffix “Forever” |
-| Version | `2.4.1` | `2.4.1-forever.1` (`TB.C.VERSION` stays a 3-number semver for the update check) |
-| SavedVariables | `TortoiseBotsDB` | unchanged, so port and upstream share a saved-variables name and prefs format |
-| Media path | `Interface\AddOns\TortoiseBotsManager\Media\` | `...\TortoiseBotsForeverManager\Media\` |
-| Credit | Sagiroth | kept in the header, /tbm help and NOTICE; port noted in the `.toc` `X-Port` field |
+| Folder / `.toc` | `TortoiseBotsManager` | `TortoiseBotsForeverManager` |
+| Interface | `11200` | `16001` |
+| Window title | TortoiseBots Manager | TortoiseBots Forever Manager |
+| Version | `2.4.1` | `2.4.1-forever.1` (`TB.C.VERSION` stays `2.4.1` for the update check) |
+| SavedVariables | `TortoiseBotsDB` | unchanged (each client has its own WTF folder, so no clash) |
+| Slash commands | `/tbm` | `/tbm`, plus `/tbmf` for trace and the offline demo |
 
-New files: `Compat.lua` (all modern API replacements), `FakeServer.lua` (`/tbmf`),
-`PROTOCOL.md`, `PORT-NOTES.md`, `NOTICE`.
+## Bridge mode (`Forever.lua`)
 
-## Client API changes (all files)
+While the server has not sent `TBM:CAPS`:
 
-1. **Event and script signatures.** Every `SetScript("OnEvent", function() …)` became
-   `function(self, event, ...)` with `local arg1 … = ...` where the body reads the event
-   arguments. Every `SetScript("OnClick"/"OnMouseUp"/…, …)` became `function(self, button)`,
-   `OnUpdate` `function(self, elapsed)`, and the other handlers `function(self, …)`.
-   The 1.12 globals `this`, `event`, `arg1…` are gone from the addon. The same conversion
-   was applied to the table callbacks `onClick = function()`, `onEnter`, `onLeave` in
-   `TB.UI.CreateButton/CreateIconButton`, and to named handlers passed to `SetScript`.
-2. **Backdrops.** Every `CreateFrame` call without a template now passes
-   `BackdropTemplateMixin and "BackdropTemplate" or nil`, so `SetBackdrop` keeps working on
-   modern clients (BackdropTemplate is required since 9.0). Original calls that already
-   passed a template are untouched.
-3. **Lua 5.0 → 5.1 library.** `table.getn(x)` → `#x`; `string.gfind` → `string.gmatch`;
-   `math.mod` → `math.fmod`; `getglobal(x)` → `_G[x]`; `table.setn` (vanilla array-size
-   hint) removed from `Roster.lua` (`clearTable` clears the slots; 5.1 derives the size).
-4. **Addon messages.** `RegisterAddonMessagePrefix`/`SendAddonMessage` globals replaced by
-   `C_ChatInfo` behind `TB.RegisterAddonPrefix` and `TB.SendAddonMessageCompat`
-   (`Compat.lua`): prefix `TBM` is registered on `ADDON_LOADED`; a send refused with result
-   code 3 or 8 (throttle) is retried once a second, five times; a final refusal is traced
-   and the command falls back to the existing chat queue. `CHAT_MSG_ADDON` is read with the
-   modern argument order `(prefix, text, channel, senderName, …)`.
-5. **Group size.** `GetNumPartyMembers`/`GetNumRaidMembers` replaced by
-   `TB.PartyCount()`/`TB.RaidCount()`: `GetNumSubgroupMembers()` for the party,
-   `IsInRaid()` + `GetNumGroupMembers()` for the raid, with the legacy functions as a
-   fallback (the offline harness mocks them).
-6. **Bags.** `GetContainerNumSlots/GetContainerItemLink/GetContainerItemInfo/
-   PickupContainerItem/SplitContainerItem/CursorHasItem` go through `TB.Bag*`
-   (`C_Container` first). `C_Container.GetContainerItemInfo` returns a table, so
-   `TB.BagInfo` unpacks it into the old `(icon, count, locked, quality, itemID)` shape.
-   `TB.BagReady()/HasBagPickup()/HasBagSplit()/HasBagCursor()` keep the features disabled
-   when the client lacks them (the mail-attach path checks them).
-7. **Unit power.** `UnitMana/UnitManaMax` → `TB.UnitMana/UnitManaMax` (`UnitPower(unit, 0)`).
-8. **Auras.** The two blessing/drink icon checks use `TB.BuffIcon`: `C_UnitAuras` when
-   present, else `UnitBuff` with the modern return order (name first, icon second).
-9. **Sound.** `PlaySound("ReadyCheck")` → `TB.PlaySound("ReadyCheck", "READY_CHECK")`
-   (`SOUNDKIT.READY_CHECK`; the old string form is attempted under `pcall` for safety).
-10. **Mail attachment.** `GetSendMailItem()` (1.12, no arguments, `name, texture, count`)
-    → `TB.SendMailItem()`: passes slot `1` and accepts both return shapes (modern is
-    `name, itemID, texture, count`), returning `name, count`.
-11. **Chat filtering.** The 1.12 `ChatFrame_OnEvent` replacement hook was removed;
-    `ChatFrame_AddMessageEventFilter` (present on this client, also used by Karrz's
-    ForeverBots) now hides `.bot…`, `TBM:…` and stock bot replies. The offline tests were
-    updated to assert the filter path.
-12. **Static popups / misc.** `StaticPopupDialogs` callbacks take the popup frame (`self`)
-    and read `self.editBox` (one dialog, `BotTotem.lua`). The target-frame button anchors
-    to `_G["TargetFrame"]` instead of `getglobal("TargetFrame")`. The search-box placeholder
-    wrapper in `Utils.lua` now forwards the handler arguments it used to drop.
-13. **New accessor.** `TB.GetClaimedBots()` (read-only list of guild bots) — the fake-server
-    test needs it and the guild tab already had the data internally.
+| Addon button | Sent to the server |
+|---|---|
+| Attack, Pull | `.tb order <scope> attack my` / `pull my` (the pull timer is dropped) |
+| End pull, Follow, Stay, Come, Free, Release | `.tb order <scope> endpull` / `follow` / `stay` / `come` / `free` / `release` |
+| Bot role tank / healer / DPS | `.tb role <bot> tank` / `healer` / `dps` |
+| Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |
 
-## Offline testing and debug modes (new)
+- `<scope>` is the targeted party bot, else `party <you>`.
+- The line goes as a **whisper to yourself**: client 70707 blocks addons from sending to `/say`, and the server runs
+  a dot command from any chat line before it is delivered. It is sent straight from the click.
+- `.tb` commands need a **GM account**. Without one the server refuses and the status line says so.
+- Replies (`TortoiseBots: ...`, `order-begin` … `order-end`, `error ...`) are shown in the status line and the Log
+  tab; the raw lines and the outgoing whisper are hidden from chat, errors stay visible.
+- Every other command is not sent (only a silent addon message to the group, so a server that learns the protocol
+  can answer it). Its control is grey with the tooltip; whole tabs without any working command (Roster list,
+  Guild, Loot, Dungeon, Raid) show a WIP banner.
 
-- `/tbmf on|off` — message trace: every addon message sent (`>`) and received (`<`) shows
-  in chat (the same trace as `/tbm trace`, with the transport label).
-- `/tbmf fake` — fake server: commands are answered locally through the real
-  `TBM:*` parsers (a canned party of two bots, one claimed guild bot, an inventory, a
-  professions sheet, a bot state and one guild order), so every tab can be clicked without
-  a server. Nothing leaves the client. Limitation: party/raid membership comes from the
-  client's group state, so the party tab stays empty while offline; the roster, guild,
-  order, bot panel and log tabs work.
-- `/tbmf status` — trace/fake/transport state.
+## Client API changes
+
+1. **Handlers.** `this`, `event`, `arg1…` are gone: every `SetScript` handler takes `(self, ...)`.
+2. **Backdrops.** Frames that use `SetBackdrop` are created with `BackdropTemplate`.
+3. **Lua 5.1.** `table.getn` → `#`, `string.gfind` → `string.gmatch`, `math.mod` → `math.fmod`,
+   `getglobal` → `_G`.
+4. **Addon messages.** `C_ChatInfo` prefix registration and send (`Compat.lua`), retry on throttle;
+   `CHAT_MSG_ADDON` read with the modern argument order.
+5. **Group size.** `GetNumSubgroupMembers`, `IsInRaid`, `GetNumGroupMembers`.
+6. **Bags.** `C_Container` first (`TB.Bag*` in `Compat.lua`).
+7. **Power, auras, sound.** `UnitPower`, `C_UnitAuras`, `SOUNDKIT`.
+8. **Mail.** `GetSendMailItem(slot)` with the modern return order.
+9. **Chat.** The old `ChatFrame_OnEvent` hook became `ChatFrame_AddMessageEventFilter`; chat commands go as a
+   whisper to yourself, never `/say`; item links go in with `ChatEdit_InsertLink`.
+10. **Lists.** `FauxScrollFrame_OnVerticalScroll(self, offset, rowHeight, update)` (modern 4-argument form).
+11. **Items.** `GetItemInfo` read with the modern positions (type 6th, equip slot 9th, texture 10th).
+12. **Targeting.** Clicking a party row targets the bot out of combat only (targeting from addon code is protected
+    in combat on this client).
+13. **Bindings.** `Bindings.xml` entries carry `category="ADDONS"`.
+
+## Offline testing
+
+- `/tbmf on` / `off`: every message sent (`>`) and received (`<`) is printed in chat.
+- `/tbmf fake`: a fake server answers locally through the real parsers; nothing leaves the client. The party tab
+  stays empty offline because the group comes from the client.
+- `/tbmf status`: trace, demo and transport state.
 
 ## Verified
 
-| Check | Command | Result |
-|---|---|---|
-| Regression suites (upstream tests, harness adapted) | `lua5.1 tests/regression.lua .` | pass, 6 suites (wire 214 controls, alt summary, geometry, community, phase 0, regression) |
-| Fake server suite | included in the regression run (`tests/fake_mode.lua`) | pass |
-| UI smoke: every window/tab built, every registered event fired | `sh tests/ui_smoke.sh .` | pass |
-| Static lint (WoW globals + modern API use) | `luacheck *.lua` (`.luacheckrc`) | 0 warnings, 0 errors (26 files) |
-| Port lint (Lua 5.1 compile of every .toc file, no 1.12 API left) | `lua5.1 tests/lint.lua .` | pass |
+All offline, no game client:
 
-The upstream `tests/lua50_syntax.lua` (a Lua 5.0 guard) was removed; `tests/lint.lua` was
-rewritten for this port. The regression `mock` translates the tests' 1.12
-`event`/`arg1`/`this` style into the modern handler arguments at `SetScript`.
+| Check | Command |
+|---|---|
+| Regression suites (upstream suites, bridge, WIP greying, fake server) | `lua5.1 tests/regression.lua .` |
+| Every window and tab built, every event handler ran | `sh tests/ui_smoke.sh .` |
+| Every `.toc` file compiles in Lua 5.1, no 1.12 API left | `lua5.1 tests/lint.lua .` |
+| Screenshots of the bridge-mode look | `TB_FOREVER_PREVIEW=1 sh tools/preview/run.sh <out> <assets>` |
 
-## Not portable / needs a check on the real client
+The API choices were checked against addons that already run on this client.
 
-- **Dropdown and faux-scroll FrameXML.** `UIDropDownMenu_*` and `FauxScrollFrame_*` are
-  still present on modern clients but deprecated; the port keeps them. If 1.60.1 has
-  removed them, the menus move to the `Menu` API and the lists to a plain ScrollFrame.
-- **Mail internals.** `MailFrame`, `MailFrameTab_OnClick`, `ClickSendMailItemButton`,
-  `SendMailNameEditBox`/`Subject`/`Body` and `GetSendMailItem` are unverified on 1.60.1.
-  The attach path fails closed: if the globals are missing the button refuses and says
-  which API is missing.
-- **`TargetByName`** (target button for a party row) exists in modern Classic but is not
-  exercised offline; the button hides when it returns false.
-- **Chat fallback in combat.** Karrz's notes say this client refuses `SendChatMessage`
-  from addon code in combat/battlegrounds; until the module advertises
-  `TBM:TRANSPORT|party`, the chat path may be refused in combat. The addon shows the
-  failure in the status line; the eventual module should always advertise the addon channel.
-- **Addon-message delivery.** ForeverBots works around a client build that did not raise
-  `CHAT_MSG_ADDON` for hidden whispers (70658) by also accepting marked system lines. This
-  addon already parses both transports, but only if the module mirrors replies onto the
-  transport it was asked on.
-- **Bindings.xml.** Unchanged; modern clients read `Bindings.xml` the same way. The
-  override bindings themselves were not exercised offline.
+## Still to check in the real client
 
-## Open questions for Sagi
+- That the `.tb` whisper is not blocked and the server runs it (needs a GM account).
+- Dropdown menus (`UIDropDownMenu_*`): present on this client, but our menus were never opened in game.
+- Mail attach (`ClickSendMailItemButton`, `MailFrameTab_OnClick`, the send-mail edit boxes): not seen in any
+  installed addon; the feature refuses and names the missing API if they are gone. Grey in bridge mode anyway.
+- Key bindings.
 
-1. Should the Forever module keep the addon-message transport on `PARTY` (prefix `TBM`,
-   bare-command payload) and mirror replies as addon messages? Any plan to change the
-   transport line or add capabilities (e.g. `forever`)?
-2. Does 1.60.1 still expose `GetSendMailItem(slot)` with `(name, itemID, texture, count)`
-   and the stock Send Mail frame globals, or should the mail feature be feature-gated?
-3. Are `UIDropDownMenu_*` and `FauxScrollFrame_*` still shipped in the FrameXML of
-   Forever (they are deprecated on retail)? If not, menus/lists need the `Menu`/
-   `ScrollFrame` rewrite.
-4. `TargetByName` semantics on Forever (server-side target) — keep the target-frame
-   button, or drive it from the roster only?
-5. Keep the `TortoiseBotsDB` SavedVariables name, or rename to
-   `TortoiseBotsForeverManagerDB` to avoid clashing with a 1.12 install on the same
-   machine? (We kept it for preference continuity.)
-6. Any module-side version/protocol bump planned? The port reports `TBM:PROTO|1|0` today
-   and understands the whole 2.4.1 protocol.
+## When the server gets the addon protocol
+
+- The server sends `TBM:TRANSPORT|party` and `TBM:CAPS|...` on `roster`: bridge mode switches off, the normal
+  capability gating takes over.
+- Then update the README section "What works today" and retest every tab in game.
