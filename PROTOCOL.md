@@ -1,6 +1,6 @@
 # TortoiseBots Manager Forever: addon ↔ server protocol
 
-This is the wire contract between **TortoiseBotsManagerForever** (this addon) and the
+This is the wire contract between **TortoiseBotsForeverManager** (this addon) and the
 TortoiseBots server module. It is **unchanged from TortoiseBotsManager 2.4.1** on purpose:
 a server module written for the 1.12 manager must talk to the Forever port without edits.
 Only the client API underneath changed (see PORT-NOTES.md).

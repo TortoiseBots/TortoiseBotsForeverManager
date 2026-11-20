@@ -1,4 +1,4 @@
--- TortoiseBotsManagerForever port lint.
+-- TortoiseBotsForeverManager port lint.
 -- The target is WoW Forever 1.60.1 (Interface 16001, modern Classic API), so this
 -- replaces the upstream 1.12 lint: every file in the .toc must compile as Lua 5.1
 -- and the addon may not call a removed 1.12 API or read a 1.12 script global
@@ -8,7 +8,7 @@
 -- Run with: lua5.1 tests/lint.lua .
 
 local root = arg[1] or "."
-local tocPath = root .. "/TortoiseBotsManagerForever.toc"
+local tocPath = root .. "/TortoiseBotsForeverManager.toc"
 
 local function read(path)
     local f = io.open(path, "rb")

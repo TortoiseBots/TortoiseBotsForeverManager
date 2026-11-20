@@ -13,7 +13,7 @@ local TB = TortoiseBots
 local C = TB.C or {} -- from Constants.lua (defensive fallback)
 
 TB.version = (C and C.VERSION) or TB.version or "0.1.0"
-TB.ADDON_NAME = "TortoiseBotsManagerForever"
+TB.ADDON_NAME = "TortoiseBotsForeverManager"
 TB.serverVersion = TB.serverVersion or nil
 
 -- Semantic versions read "v1.2.3"; any other build string (an older
@@ -335,6 +335,25 @@ function TB.SendBotCommand(cmd, opts)
     opts = opts or {}
     cmd = TB.Trim(cmd or "")
     if cmd == "" then return false end
+
+    -- TortoiseBotsForever has no `.bot` layer yet: run the `.tb` twin, if any.
+    local F = TB.Forever
+    if F and not F.Native() and not (TB.fake and TB.fake.enabled) then
+        if F.Translate(cmd) then
+            local sent = F.Send(cmd)
+            if sent then
+                TB.lastCommand = cmd
+                if TB.OnCommandSent then TB.OnCommandSent(cmd) end
+            end
+            return sent
+        end
+        -- No twin: only a silent group probe, so a server that learns the
+        -- native protocol can answer it (TBM:CAPS switches the bridge off).
+        if TB.PartyCount and TB.PartyCount() > 0 and TB.SendAddonMessageCompat then
+            TB.SendAddonMessageCompat((C and C.ADDON_PREFIX) or "TBM", cmd, "PARTY")
+        end
+        return false
+    end
 
     local full = ".bot " .. cmd
     local channel = TB.AddonCommandChannel and TB.AddonCommandChannel()

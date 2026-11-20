@@ -3,12 +3,13 @@
 ## Notes: Manager for Sagiroth's TortoiseBots, ported to WoW Forever 1.60.1 (Classic 16001). Needs a TortoiseBots Forever server module.
 ## Author: Sagiroth
 ## X-Website: https://github.com/Sagiroth/TortoiseBotsManager
-## X-Port: TortoiseBotsManagerForever (WoW Forever 1.60.1); port notes in PORT-NOTES.md
+## X-Port: TortoiseBotsForeverManager (WoW Forever 1.60.1); port notes in PORT-NOTES.md
 ## Version: 2.4.1-forever.1
 ## SavedVariables: TortoiseBotsDB
 
 Constants.lua
 Compat.lua
+Forever.lua
 Utils.lua
 Core.lua
 Roster.lua

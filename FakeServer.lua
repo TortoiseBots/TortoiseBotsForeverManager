@@ -1,4 +1,4 @@
--- TortoiseBotsManagerForever/FakeServer.lua
+-- TortoiseBotsForeverManager/FakeServer.lua
 -- Offline testing for the port (there is no TortoiseBots Forever server yet).
 --
 --   /tbmf on|off     trace: print every addon message sent (>) and received (<)

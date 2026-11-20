@@ -1,8 +1,8 @@
-# TortoiseBotsManagerForever
+# TortoiseBotsForeverManager
 
 The TortoiseBots Manager ported to **WoW Forever 1.60.1** (Classic Interface 16001).
 
-- Install: copy the `TortoiseBotsManagerForever` folder into
+- Install: copy the `TortoiseBotsForeverManager` folder into
   `World of Warcraft\_forever_\Interface\AddOns\`, then `/tbm` in game. A TortoiseBots
   Forever **server module** is required; this add-on alone only draws the interface.
 - Protocol: unchanged from TortoiseBotsManager 2.4.1 — see **PROTOCOL.md**.

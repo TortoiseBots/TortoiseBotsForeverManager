@@ -18,7 +18,7 @@ local failures = {}
 dofile(root .. "/tools/preview/mock.lua")
 
 -- ── load the addon in .toc order ─────────────────────────────────────────
-local toc = io.open(root .. "/TortoiseBotsManagerForever.toc"):read("*a")
+local toc = io.open(root .. "/TortoiseBotsForeverManager.toc"):read("*a")
 for line in string.gmatch(toc, "[^\r\n]+") do
     if not string.find(line, "^##") and string.find(line, "%.lua%s*$") then
         local file = string.gsub(line, "%s+$", "")

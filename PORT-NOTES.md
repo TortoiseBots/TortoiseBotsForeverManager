@@ -1,4 +1,4 @@
-# Port notes: TortoiseBotsManager 2.4.1 → TortoiseBotsManagerForever
+# Port notes: TortoiseBotsManager 2.4.1 → TortoiseBotsForeverManager
 
 Target client: **WoW Forever 1.60.1** (`## Interface: 16001`, modern Classic API).
 Base addon: **TortoiseBotsManager v2.4.1** by Sagiroth (MIT), the newest release on
@@ -9,11 +9,11 @@ what is not portable, and what to ask Sagi before the server module is written.
 
 | Item | 1.12 addon | Forever port |
 |---|---|---|
-| Folder / addon name | `TortoiseBotsManager` | `TortoiseBotsManagerForever` |
+| Folder / addon name | `TortoiseBotsManager` | `TortoiseBotsForeverManager` |
 | `.toc` | `## Interface: 11200` | `## Interface: 16001`, title suffix “Forever” |
 | Version | `2.4.1` | `2.4.1-forever.1` (`TB.C.VERSION` stays a 3-number semver for the update check) |
 | SavedVariables | `TortoiseBotsDB` | unchanged, so port and upstream share a saved-variables name and prefs format |
-| Media path | `Interface\AddOns\TortoiseBotsManager\Media\` | `...\TortoiseBotsManagerForever\Media\` |
+| Media path | `Interface\AddOns\TortoiseBotsManager\Media\` | `...\TortoiseBotsForeverManager\Media\` |
 | Credit | Sagiroth | kept in the header, /tbm help and NOTICE; port noted in the `.toc` `X-Port` field |
 
 New files: `Compat.lua` (all modern API replacements), `FakeServer.lua` (`/tbmf`),
@@ -131,7 +131,7 @@ rewritten for this port. The regression `mock` translates the tests' 1.12
 4. `TargetByName` semantics on Forever (server-side target) — keep the target-frame
    button, or drive it from the roster only?
 5. Keep the `TortoiseBotsDB` SavedVariables name, or rename to
-   `TortoiseBotsManagerForeverDB` to avoid clashing with a 1.12 install on the same
+   `TortoiseBotsForeverManagerDB` to avoid clashing with a 1.12 install on the same
    machine? (We kept it for preference continuity.)
 6. Any module-side version/protocol bump planned? The port reports `TBM:PROTO|1|0` today
    and understands the whole 2.4.1 protocol.

@@ -721,7 +721,7 @@ TB.C.COLOR = {
 }
 
 -- Shipped glyph textures (white, tinted with SetVertexColor); see tools/make_media.py.
-TB.C.MEDIA = "Interface\\AddOns\\TortoiseBotsManagerForever\\Media\\"
+TB.C.MEDIA = "Interface\\AddOns\\TortoiseBotsForeverManager\\Media\\"
 
 -- Surfaces of the flat theme: one 1px frame on a solid fill, a lighter step
 -- per depth (window, header band, card, row). { r, g, b, a }.
