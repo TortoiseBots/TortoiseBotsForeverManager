@@ -219,6 +219,65 @@ return function(ctx)
     assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "You do not have permission to perform that function."),
         "permission errors must stay visible in chat")
 
+    -- 6. Gear upgrades and planned twins
+    assert(F.Translate("autogear Alpha") == ".tb gear Alpha upgrade",
+        "autogear should translate to .tb gear upgrade")
+    assert(F.Available("autogear Alpha") == true, "autogear should be available")
+    assert(F.Translate("autogear") == nil, "bare autogear should stay nil")
+    assert(F.Send("autogear Alpha") == true, "F.Send should send gear upgrades")
+
+    local futureCases = {
+        { key = "pullback", cmd = "action pullback", line = ".tb cmd pullback" },
+        { key = "rest", cmd = "action rest", line = ".tb cmd rest" },
+        { key = "use", cmd = "action use", line = ".tb cmd use" },
+        { key = "cc", cmd = "action cc moon Alpha", line = ".tb cc moon Alpha" },
+    }
+    for _, c in ipairs(futureCases) do
+        assert(F.Future[c.key] and F.Future[c.key].on == false,
+            "future row " .. c.key .. " should ship switched off")
+        assert(F.Translate(c.cmd) == nil, c.cmd .. " should stay nil while off")
+        assert(F.Available(c.cmd) == false, c.cmd .. " should be unavailable while off")
+    end
+    for _, c in ipairs(futureCases) do
+        F.Future[c.key].on = true
+        assert(F.Translate(c.cmd) == c.line, c.cmd .. " should translate once on")
+        assert(F.Available(c.cmd) == true, c.cmd .. " should be available once on")
+        F.Future[c.key].on = false
+    end
+    assert(F.Translate("action pullback") == nil, "row must be off again after the check")
+
+    -- Gear reply sequence (upgrades found)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("gear-begin #g1")
+    TB.OnSystemMessage("gear bot=Mtank slot=15 old=2504 new=15210 #g1")
+    TB.OnSystemMessage("gear bot=Mpriest changed=0 #g1")
+    TB.OnSystemMessage("gear-end count=2 records=2 target=party:Mtank bots=2 changed=1 #g1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "1 changed", 1, true),
+        "gear-end with changed=1 should set ok status: " .. tostring(lastStatus))
+
+    -- Gear reply sequence (nothing to equip)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("gear-begin #g2")
+    TB.OnSystemMessage("gear bot=Mpriest changed=0 #g2")
+    TB.OnSystemMessage("gear-end count=1 records=1 target=Mpriest bots=1 changed=0 #g2")
+    assert(lastStatusKind == "ok" and lastStatus == "Gear already up to date",
+        "gear-end with changed=0 should say up to date")
+
+    -- Gear refusal (in combat)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=in-combat cmd=gear msg=Mtank%20is%20in%20combat #g3")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "in combat", 1, true),
+        "gear error should set warn status with readable code: " .. tostring(lastStatus))
+
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "gear-begin #g1") == true,
+        "gear-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "gear bot=Mtank slot=15 old=2504 new=15210 #g1") == true,
+        "per-bot gear line should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "gear-end count=2 records=2 target=party:Mtank bots=2 changed=1 #g1") == true,
+        "gear-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=in-combat cmd=gear msg=Mtank%20is%20in%20combat #g3"),
+        "gear error lines must stay visible in chat")
+
     -- Restore globals
     TB.ServerCapabilitiesKnown = origCapsKnown
     TB.SetStatus = origSetStatus

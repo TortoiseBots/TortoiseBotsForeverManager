@@ -25,15 +25,16 @@ The server does not have the full addon protocol yet. Until it does, the addon u
 | Where | What |
 | :--- | :--- |
 | Fight tab | Attack, Pull (without the timer), End pull, Follow, Stay, Come, Free |
-| Camp tab | Release |
 | Party tab | Bot role (tank, healer, DPS), Summon, Kick, Log out |
+| Bot panel | Auto-gear (equips the bot's bag upgrades) |
+| Camp tab | Release |
 
 Orders go to the bot you target, or to the whole party when you target nobody in it.
 
 Everything else is greyed out with a **Not currently available** tooltip: the roster list, guild and guild orders,
-loot history, dungeon runs, the raid tab, the bot panel (gear, bags, professions, spells), totems, blessings, class
-choices, camp chores, formations, tactics and server info. They come back by themselves when the server learns
-the full protocol: the addon then switches over without an update.
+loot history, dungeon runs, the raid tab, the rest of the bot panel (gear, bags, professions, spells), totems,
+blessings, class choices, camp chores, formations, tactics and server info. They come back by themselves when the
+server learns the full protocol: the addon then switches over without an update.
 
 ## Screenshots
 

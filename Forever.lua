@@ -32,6 +32,21 @@ local ORDER_VERBS = {
 
 local ROLE_WORDS = { tank = "tank", heal = "healer", healer = "healer", dps = "dps", none = "none", clear = "none" }
 
+-- Planned `.tb` twins: the server syntax is not confirmed yet, so every row
+-- stays off. While `on` is false the intent has no translation and its control
+-- stays greyed ("Not currently available"). Switching one on is one line:
+-- flip its `on` to true.
+-- (No ignore row: the panel has no ignore intent yet. Add one with the button.)
+F.Future = {
+    -- The commander's order path: these intents will travel as `.tb cmd <verb>`.
+    pullback = { on = false, match = "^action pullback$", build = function() return ".tb cmd pullback" end },
+    rest     = { on = false, match = "^action rest$",     build = function() return ".tb cmd rest" end },
+    -- The commander's task path: use travels as `.tb cmd use`.
+    use      = { on = false, match = "^action use$",      build = function() return ".tb cmd use" end },
+    -- Crowd-control permissions travel as `.tb cc ...` (exact words TBD).
+    cc       = { on = false, match = "^action cc%s+(.+)$", build = function(tail) return ".tb cc " .. tail end },
+}
+
 local READABLE_CODES = {
     ["no-engine"] = "no engine running",
     ["action-not-registered"] = "action not supported",
@@ -71,6 +86,7 @@ local KNOWN_RECORD_KINDS = {
     commander = "commander",
     binding = "commander",
     member = "commander",
+    gear = "gear",
     plan = "plan",
     run = "run",
 }
@@ -111,6 +127,10 @@ end
 -- `.bot` payload -> `.tb` chat line, or nil when Forever has no twin yet.
 function F.Translate(cmd)
     cmd = trim(cmd)
+    for _, row in pairs(F.Future or {}) do
+        local tail = string.match(cmd, row.match)
+        if tail and row.on then return row.build(tail) end
+    end
     local verb, rest = string.match(cmd, "^(%S+)%s*(.*)$")
     if not verb then return nil end
     verb = string.lower(verb)
@@ -121,6 +141,12 @@ function F.Translate(cmd)
         intent = string.gsub(intent, "^(pull)%s+%d+$", "%1")
         local order = ORDER_VERBS[intent]
         if order then return ".tb order " .. orderScope() .. " " .. order end
+        return nil
+    end
+
+    if verb == "autogear" then
+        local bot = string.match(rest, "^(%S+)%s*$")
+        if bot then return ".tb gear " .. bot .. " upgrade" end
         return nil
     end
 
@@ -262,6 +288,14 @@ local function formatEndSummary(kind, kv, refusedCount, refusals)
             return string.format("Teleport started (%s)", target)
         end
         return string.format("Teleport: %d refused (%s)", refusedCount, formatRefusals(refusals))
+    elseif kind == "gear" then
+        local changed = tonumber(kv.changed) or 0
+        if refusedCount ~= 0 then
+            return string.format("Gear upgrades: %d refused (%s)", refusedCount, formatRefusals(refusals))
+        elseif changed == 0 then
+            return "Gear already up to date"
+        end
+        return string.format("Gear upgrades equipped (%d changed)", changed)
     end
     if refusedCount == 0 then
         return string.format("%s complete", kind)
