@@ -1,6 +1,6 @@
 -- TortoiseBotsManager/Constants.lua
 -- Single source of truth for dimensions, colors, timings, and UX strings.
--- Ported to WoW Forever 1.60.1 (Classic 16001); see PORT-NOTES.md.
+-- Ported to the WoW Forever client for ForeverCore; see PORT-NOTES.md.
 
 TortoiseBots = TortoiseBots or {}
 local TB = TortoiseBots

@@ -1,6 +1,6 @@
 # Port notes: TortoiseBotsManager 2.4.1 → TortoiseBotsForeverManager
 
-Target client: **WoW Forever 1.60.1** (`## Interface: 16001`, modern Classic API).
+Target: the WoW Forever client (modern Classic API) on a **ForeverCore** server; the interface number is in the `.toc`.
 Base: **TortoiseBotsManager v2.4.1** (Sagiroth, MIT), ported to the modern client by waterys419.
 Server: **TortoiseBotsForever**, which is still being ported.
 
@@ -20,7 +20,7 @@ Server: **TortoiseBotsForever**, which is still being ported.
 | Item | 1.12 addon | This port |
 |---|---|---|
 | Folder / `.toc` | `TortoiseBotsManager` | `TortoiseBotsForeverManager` |
-| Interface | `11200` | `16001` |
+| Interface | `11200` | the WoW Forever client's (see the `.toc`) |
 | Window title | TortoiseBots Manager | TortoiseBots Forever Manager |
 | Version | `2.4.1` | `2.4.1-forever.1` (`TB.C.VERSION` stays `2.4.1` for the update check) |
 | SavedVariables | `TortoiseBotsDB` | unchanged (each client has its own WTF folder, so no clash) |
@@ -38,7 +38,7 @@ While the server has not sent `TBM:CAPS`:
 | Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |
 
 - `<scope>` is the targeted party bot, else `party <you>`.
-- The line goes as a **whisper to yourself**: client 70707 blocks addons from sending to `/say`, and the server runs
+- The line goes as a **whisper to yourself**: the client blocks addons from sending to `/say`, and the server runs
   a dot command from any chat line before it is delivered. It is sent straight from the click.
 - `.tb` commands need a **GM account**. Without one the server refuses and the status line says so.
 - Replies (`TortoiseBots: ...`, `order-begin` … `order-end`, `error ...`) are shown in the status line and the Log

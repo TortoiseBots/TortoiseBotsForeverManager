@@ -1,5 +1,5 @@
 -- TortoiseBotsForeverManager/Compat.lua
--- The modern Classic (WoW Forever 1.60.1) replacements for the 1.12 client API.
+-- The modern Classic (WoW Forever client) replacements for the 1.12 client API.
 -- Everything else in the addon talks to this file, so an API that moves again
 -- is one edit here. Written for the modern client: C_ChatInfo, C_Container,
 -- C_UnitAuras, GetNumGroupMembers/IsInRaid, UnitPower and SOUNDKIT, with a

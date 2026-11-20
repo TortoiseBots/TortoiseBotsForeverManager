@@ -2,7 +2,7 @@ TortoiseBotsForeverManager
 ==========================
 
 An in-game control panel (/tbfm) for TortoiseBots, ported from the Vanilla 1.12
-add-on to the WoW Forever 1.60.1 client (Classic Interface 16001, modern Classic API).
+add-on to the WoW Forever client (modern Classic API), for ForeverCore servers.
 
 Upstream
 --------
@@ -14,12 +14,12 @@ Licence: MIT (see LICENSE, kept unchanged from upstream)
 
 Server side
 -----------
-TortoiseBotsForever (TortoiseBots ported to the WoW Forever server)
+TortoiseBotsForever (TortoiseBots ported to ForeverCore)
 https://github.com/TortoiseBots/TortoiseBotsForever
 
 Port
 ----
-Ported to WoW Forever 1.60.1 in November 2026 by waterys419
+Ported to the WoW Forever client in November 2026 by waterys419
 (https://github.com/waterys419). The add-on message protocol is unchanged; only
 the client API underneath was ported (PORT-NOTES.md). PORT-NOTES.md and
 PROTOCOL.md are additions of the port.

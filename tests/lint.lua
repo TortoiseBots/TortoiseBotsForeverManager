@@ -1,5 +1,5 @@
 -- TortoiseBotsForeverManager port lint.
--- The target is WoW Forever 1.60.1 (Interface 16001, modern Classic API), so this
+-- The target is the WoW Forever client (modern Classic API), so this
 -- replaces the upstream 1.12 lint: every file in the .toc must compile as Lua 5.1
 -- and the addon may not call a removed 1.12 API or read a 1.12 script global
 -- directly (Compat.lua owns the modern replacements). Globals and API names are
