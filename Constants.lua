@@ -8,7 +8,7 @@ TB.C = TB.C or {}
 
 TB.C.VERSION = "2.4.1"
 
--- Author credit shown in the window header, the load message and /tbm help.
+-- Author credit shown in the window header, the load message and /tbfm help.
 -- Forks and repacks must keep it (see README "Credit").
 TB.C.AUTHOR = "Sagiroth"
 TB.C.SOURCE_URL = "https://github.com/TortoiseBots/TortoiseBotsForeverManager"

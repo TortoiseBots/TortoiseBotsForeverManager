@@ -24,7 +24,7 @@ Server: **TortoiseBotsForever**, which is still being ported.
 | Window title | TortoiseBots Manager | TortoiseBots Forever Manager |
 | Version | `2.4.1` | `2.4.1-forever.1` (`TB.C.VERSION` stays `2.4.1` for the update check) |
 | SavedVariables | `TortoiseBotsDB` | unchanged (each client has its own WTF folder, so no clash) |
-| Slash commands | `/tbm` | `/tbm`, plus `/tbmf` for trace and the offline demo |
+| Slash commands | `/tbm` | `/tbfm` (with `/tbfm trace`, `/tbfm fake` and `/tbfm status` for the trace and the offline demo) |
 
 ## Bridge mode (`Forever.lua`)
 
@@ -69,10 +69,10 @@ While the server has not sent `TBM:CAPS`:
 
 ## Offline testing
 
-- `/tbmf on` / `off`: every message sent (`>`) and received (`<`) is printed in chat.
-- `/tbmf fake`: a fake server answers locally through the real parsers; nothing leaves the client. The party tab
+- `/tbfm trace`: every message sent (`>`) and received (`<`) is printed in chat.
+- `/tbfm fake`: a fake server answers locally through the real parsers; nothing leaves the client. The party tab
   stays empty offline because the group comes from the client.
-- `/tbmf status`: trace, demo and transport state.
+- `/tbfm status`: trace, demo and transport state.
 
 ## Verified
 

@@ -343,7 +343,7 @@ end
 
 function TB.OpenActiveOrders()
     if not (TB.HasOrderCapability and TB.HasOrderCapability()) then
-        if TB.Print then TB.Print("Orders are not available: the server has not announced order support yet. Try /tbm sync or /reload.") end
+        if TB.Print then TB.Print("Orders are not available: the server has not announced order support yet. Try /tbfm sync or /reload.") end
         return false
     end
     if not win then

@@ -3,7 +3,7 @@
 --   * UI-preference SavedVariables init + migration
 --   * Throttled SendChatMessage queue for ".bot …"
 --   * Authoritative roster poll orchestration (.bot roster)
---   * Slash commands (/tbm primary, /tb /tbot aliases)
+--   * Slash commands (/tbfm primary, /tb /tbot aliases)
 --   * Lifecycle (ADDON_LOADED, PLAYER_ENTERING_WORLD)
 --
 -- Non-responsibilities: roster model (Roster.lua), protocol parsing (Comms.lua), layout (UI.lua).
@@ -816,7 +816,7 @@ local function ensureFeedbackFrame()
 end
 ensureFeedbackFrame()
 -- ── Slash ───────────────────────────────────────────────────────────────────
-SLASH_TORTOISEBOTSMANAGER1 = "/tbm"
+SLASH_TORTOISEBOTSMANAGER1 = "/tbfm"
 SLASH_TORTOISEBOTSMANAGER2 = "/tb"
 SLASH_TORTOISEBOTSMANAGER3 = "/tbot"
 SLASH_TORTOISEBOTSMANAGER4 = "/tortoise"
@@ -824,14 +824,17 @@ SlashCmdList["TORTOISEBOTSMANAGER"] = function(msg)
     msg = string.lower(TB.Trim(msg or ""))
     local _, _, bagsName = string.find(msg, "^bags%s*(%S*)$")
     if bagsName then
-        -- "/tbm bags <name>", or the targeted bot when no name is given.
+        -- "/tbfm bags <name>", or the targeted bot when no name is given.
         local name = bagsName ~= "" and bagsName or (UnitName and UnitName("target")) or nil
-        if name and TB.OpenBotPanel then TB.OpenBotPanel(name) else TB.Print("Usage: /tbm bags <bot name> (or target the bot)") end
+        if name and TB.OpenBotPanel then TB.OpenBotPanel(name) else TB.Print("Usage: /tbfm bags <bot name> (or target the bot)") end
         return
     end
     if msg == "help" or msg == "h" then
-        TB.Print("Commands: /tbm — toggle, /tbm party — show party, /tbm bags [name] — bot gear & bags, /tbm mini | full — small fight bar or full window, /tbm minilayout [horizontal|vertical] — mini bar direction, /tbm settings — window options, /tbm trace — show what is sent and received, /tbm log — show log, /tbm list — poll, /tbm resetpos — center, /tbm help — this")
+        TB.Print("Commands: /tbfm — toggle, /tbfm party — show party, /tbfm bags [name] — bot gear & bags, /tbfm mini | full — small fight bar or full window, /tbfm minilayout [horizontal|vertical] — mini bar direction, /tbfm settings — window options, /tbfm trace — show what is sent and received, /tbfm fake — offline demo, /tbfm status — trace and demo state, /tbfm log — show log, /tbfm list — poll, /tbfm resetpos — center, /tbfm help — this")
         TB.Print("TortoiseBots by " .. TB.C.AUTHOR .. " — " .. TB.C.SOURCE_URL)
+        return
+    elseif (msg == "fake" or msg == "status") and TB.FakeCommand then
+        TB.FakeCommand(msg)
         return
     elseif msg == "trace" then
         TB.trace = not TB.trace
@@ -906,7 +909,7 @@ local arg1 = ...
         if TB.InitComms   then TB.InitComms()   end
         if TB.InitUI      then TB.InitUI()      end
         if TB.InitMinimap then TB.InitMinimap() end
-        TB.Print("v" .. TB.version .. " loaded by " .. TB.C.AUTHOR .. ". /tbm to open. Requires TortoiseBots module on server.")
+        TB.Print("v" .. TB.version .. " loaded by " .. TB.C.AUTHOR .. ". /tbfm to open. Requires TortoiseBots module on server.")
     elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
         installBotCommandChatFilter()
         if TB.RequestServerCapabilities then TB.RequestServerCapabilities() end

@@ -686,7 +686,7 @@ CreateHeader = function(parent)
     mini:SetWidth(40); mini:SetHeight(18)
     mini:SetPoint("RIGHT", close, "LEFT", -4, 0)
     mini:SetText("Mini")
-    setButtonTooltip(mini, "Swap this window for a small bar with the fight buttons. Its + button brings the window back. Also /tbm mini.", "Mini mode")
+    setButtonTooltip(mini, "Swap this window for a small bar with the fight buttons. Its + button brings the window back. Also /tbfm mini.", "Mini mode")
     mini:SetScript("OnClick", function(self, button) TB.RequestMode("mini") end)
     TB.miniButton = mini
     -- Info: the server's version and switches (ServerInfo.lua).
