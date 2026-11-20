@@ -38,6 +38,7 @@ While the server has not sent `TBM:CAPS`:
 | Rest | `.tb cmd rest` (needs the party bound to you) |
 | Use | `.tb cmd use my` (uses your target; needs the party bound to you) |
 | Repair, Sell, Train | `.tb order <scope> repair` / `sell` / `train` (the bot must stand near the right NPC) |
+| Accept quests (camp tab) | `.tb quest <bot> accept *` (the offered quest on that bot) |
 | Bot role tank / healer / DPS (a bot, or yourself) | `.tb role <bot> tank` / `healer` / `dps`, `.tb role <word>` for yourself |
 | Auto-gear, Equip upgrades (bot panel) | `.tb gear <bot> upgrade` |
 | Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |

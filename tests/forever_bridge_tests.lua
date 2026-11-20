@@ -76,6 +76,9 @@ return function(ctx)
     assert(F.Translate("role self bogus") == nil)
     assert(F.Translate("command Alpha d equip upgrades") == ".tb gear Alpha upgrade")
     assert(F.Translate("command Alpha d something else") == nil)
+    assert(F.Translate("command Alpha accept") == ".tb quest Alpha accept *", "quest accept should translate")
+    assert(F.Available("command Alpha accept") == true, "quest accept should be available")
+    assert(F.Translate("command Alpha share") == nil, "quest share needs an id the panel has not")
 
     -- Unknown / unsupported -> nil
     for _, unk in ipairs({ "action stop", "action flee", "roster", "alts", "", "unknowncmd Alpha" }) do
@@ -381,6 +384,35 @@ return function(ctx)
         "cmd-end should be hidden")
     assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=not-bound cmd=cmd msg=you%20have%20no%20bound%20bots #c2"),
         "cmd error lines must stay visible in chat")
+
+    -- Quest replies (accept ok, filtered refusal, status list)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("quest-begin #q1")
+    TB.OnSystemMessage("quest bot=Mtank verb=accept status=accepted #q1")
+    TB.OnSystemMessage("quest-end count=1 records=1 bot=Mtank verb=accept #q1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "Quest accept complete", 1, true),
+        "quest-end should set ok status: " .. tostring(lastStatus))
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("quest-begin #q2")
+    TB.OnSystemMessage("quest bot=Mtank verb=accept id=123 status=refused code=filtered #q2")
+    TB.OnSystemMessage("quest-end count=1 records=1 bot=Mtank verb=accept #q2")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "filtered", 1, true),
+        "filtered quest should set warn status: " .. tostring(lastStatus))
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("quest-begin #q3")
+    TB.OnSystemMessage("quest bot=Mtank id=1 title=First%20Quest status=incomplete objectives=1%2F5 #q3")
+    TB.OnSystemMessage("quest bot=Mtank id=2 title=Second%20Quest status=complete objectives=5%2F5 #q3")
+    TB.OnSystemMessage("quest-end count=2 records=2 bot=Mtank verb=status quests=2 #q3")
+    assert(lastStatusKind == "ok" and lastStatus == "Quest log (2 quest(s))",
+        "quest status should summarize the log: " .. tostring(lastStatus))
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "quest-begin #q1") == true,
+        "quest-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "quest bot=Mtank verb=accept status=accepted #q1") == true,
+        "quest record should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "quest-end count=1 records=1 bot=Mtank verb=accept #q1") == true,
+        "quest-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=bad-id cmd=quest msg=invalid%20quest%20id #q4"),
+        "quest error lines must stay visible in chat")
 
     -- Restore globals
     TB.ServerCapabilitiesKnown = origCapsKnown

@@ -91,6 +91,7 @@ local KNOWN_RECORD_KINDS = {
     gear = "gear",
     cmd = "cmd",
     ignore = "ignore",
+    quest = "quest",
     plan = "plan",
     run = "run",
 }
@@ -246,6 +247,11 @@ function F.Translate(cmd)
     end
     if verb == "command" and name and string.lower(extra or "") == "d equip upgrades" then
         return ".tb gear " .. name .. " upgrade"
+    end
+    -- Quest accept: the offered quest on that bot (`*`); share needs a quest
+    -- id the panel does not have, so it stays unmapped.
+    if verb == "command" and name and string.lower(extra or "") == "accept" then
+        return ".tb quest " .. name .. " accept *"
     end
     if not name or name == "" then return nil end
     local player = me()
@@ -418,6 +424,13 @@ local function formatEndSummary(kind, kv, refusedCount, refusals)
             return string.format("Ignore %s accepted (%s ok)", verb, kv.ok or "0")
         end
         return string.format("Ignore %s: %d refused (%s)", verb, refusedCount, formatRefusals(refusals))
+    elseif kind == "quest" then
+        local verb = kv.verb or "quest"
+        if refusedCount == 0 then
+            if kv.quests then return string.format("Quest log (%s quest(s))", kv.quests) end
+            return string.format("Quest %s complete", verb)
+        end
+        return string.format("Quest %s: %d refused (%s)", verb, refusedCount, formatRefusals(refusals))
     end
     if refusedCount == 0 then
         return string.format("%s complete", kind)

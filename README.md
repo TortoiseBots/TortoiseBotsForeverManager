@@ -27,7 +27,7 @@ The server does not have the full addon protocol yet. Until it does, the addon u
 | Fight tab | Attack, Pull, Pullback, Focus (your target), End pull, Follow, Stay, Come, Free, Use (your target) |
 | Party tab | Bot role (tank, healer, DPS), Summon, Kick, Log out |
 | Bot panel | Auto-gear (equips the bot's bag upgrades) |
-| Camp tab | Rest, Repair, Sell, Train, Release (repair/sell/train need the right NPC nearby) |
+| Camp tab | Rest, Repair, Sell, Train, Release, Accept quests (repair/sell/train need the right NPC nearby) |
 
 Orders go to the bot you target, or to the whole party when you target nobody in it. Attack, Pull, Pullback,
 Focus, Rest and Use need the party bound to you; without a target, Attack and Pull fall back to the party orders.
