@@ -11,7 +11,7 @@ TB.C.VERSION = "2.4.1"
 -- Author credit shown in the window header, the load message and /tbm help.
 -- Forks and repacks must keep it (see README "Credit").
 TB.C.AUTHOR = "Sagiroth"
-TB.C.SOURCE_URL = "https://github.com/Sagiroth/TortoiseBotsManager"
+TB.C.SOURCE_URL = "https://github.com/TortoiseBots/TortoiseBotsForeverManager"
 
 -- Addon/module protocol levels, separate from release numbers. PROTOCOL is
 -- the level this addon understands; MIN_MODULE_PROTOCOL is the oldest module

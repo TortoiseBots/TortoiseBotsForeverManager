@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: |cffd8a657Tortoise|r|cff4ecb5aBots|r |cfffff2ccManager|r |cff8c8270Forever|r
-## Notes: Manager for Sagiroth's TortoiseBots, ported to WoW Forever 1.60.1 (Classic 16001). Needs a TortoiseBots Forever server module.
+## Notes: WIP control panel for TortoiseBotsForever bots on WoW Forever. Some features are not available yet.
 ## Author: Sagiroth
-## X-Website: https://github.com/Sagiroth/TortoiseBotsManager
+## X-Website: https://github.com/TortoiseBots/TortoiseBotsForeverManager
 ## X-Port: TortoiseBotsForeverManager (WoW Forever 1.60.1); port notes in PORT-NOTES.md
 ## Version: 2.4.1-forever.1
 ## SavedVariables: TortoiseBotsDB

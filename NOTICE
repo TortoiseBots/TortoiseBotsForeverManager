@@ -8,14 +8,14 @@ Upstream
 --------
 TortoiseBotsManager v2.4.1
 Copyright (c) 2026 Tortoise WoW Stack contributors
-https://github.com/Sagiroth/TortoiseBotsManager
+https://github.com/TortoiseBots/TortoiseBotsManager
 Author: Sagiroth
 Licence: MIT (see LICENSE, kept unchanged from upstream)
 
 Server side
 -----------
-TortoiseBots (PlayerBots for Tortoise WoW / WoW Forever)
-https://github.com/Sagiroth/TortoiseBots
+TortoiseBotsForever (TortoiseBots ported to the WoW Forever server)
+https://github.com/TortoiseBots/TortoiseBotsForever
 
 Port
 ----
@@ -35,4 +35,4 @@ Trademarks
 World of Warcraft and Blizzard Entertainment are trademarks or registered
 trademarks of Blizzard Entertainment, Inc. in the U.S. and/or other countries.
 This add-on is unofficial and not endorsed by or affiliated with Blizzard
-Entertainment. It is not affiliated with Turtle WoW or Sagiroth.
+Entertainment. It is not affiliated with Turtle WoW.
