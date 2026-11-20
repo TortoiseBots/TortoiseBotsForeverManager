@@ -2876,7 +2876,7 @@ end
 
 local function itemTexture(id)
     if id and GetItemInfo then
-        local _, _, _, _, _, _, _, _, texture = GetItemInfo(id)
+        local _, _, _, _, _, _, _, _, _, texture = GetItemInfo(id)
         if texture then return texture end
         requestItem(id)
     end
@@ -3291,7 +3291,7 @@ local function createOrderStepOne(pane)
     results:SetWidth(OW - 24)
     results:SetHeight(RESULT_ROW_N * RESULT_ROW_H + 4)
     results:SetScript("OnVerticalScroll", function(self, offset)
-        FauxScrollFrame_OnVerticalScroll(RESULT_ROW_H, TB.RefreshOrderWindow)
+        FauxScrollFrame_OnVerticalScroll(self, offset, RESULT_ROW_H, TB.RefreshOrderWindow)
     end)
     win.results = results
 

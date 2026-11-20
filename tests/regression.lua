@@ -222,7 +222,7 @@ local itemCache = {}
 function GetItemInfo(id)
     local item = itemCache[id]
     if not item then return nil end
-    return item.name, "item:" .. id .. ":0:0:0", item.quality or 1, 1,
+    return item.name, "item:" .. id .. ":0:0:0", item.quality or 1, 1, 1,
         item.itemType or "Armor", item.subType or "Cloth", 1, item.equipLoc or "", item.texture
 end
 function UnitLevel(unit) return 60 end

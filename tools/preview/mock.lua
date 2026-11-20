@@ -531,8 +531,8 @@ local ITEMS = {
 function GetItemInfo(id)
     if type(id) == "string" then id = tonumber(string.match(id, "item:(%d+)") or id) end
     local it = ITEMS[id]
-    if not it then return "Item " .. tostring(id), "item:" .. tostring(id) .. ":0:0:0", 2, 40, it and it[4] or "Armor", "Misc", 1, "", "Interface\\Icons\\INV_Misc_QuestionMark" end
-    return it[1], "item:" .. id .. ":0:0:0", it[2], 60, it[4], it[5], 20, "", it[3]
+    if not it then return "Item " .. tostring(id), "item:" .. tostring(id) .. ":0:0:0", 2, 40, 1, it and it[4] or "Armor", "Misc", 1, "", "Interface\\Icons\\INV_Misc_QuestionMark" end
+    return it[1], "item:" .. id .. ":0:0:0", it[2], 60, 1, it[4], it[5], 20, "", it[3]
 end
 function GetSpellInfo() return nil end
 

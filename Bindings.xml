@@ -1,77 +1,77 @@
 <Bindings>
-  <Binding runOnUp="false" name="TBM_ATTACK" header="TBM">
+  <Binding runOnUp="false" name="TBM_ATTACK" header="TBM" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("attack") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_STOP">
+  <Binding runOnUp="false" name="TBM_STOP" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("stop") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_INTERRUPT">
+  <Binding runOnUp="false" name="TBM_INTERRUPT" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("interrupt") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FLEE">
+  <Binding runOnUp="false" name="TBM_FLEE" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("flee") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_PULL">
+  <Binding runOnUp="false" name="TBM_PULL" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("pull") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_PULLBACK">
+  <Binding runOnUp="false" name="TBM_PULLBACK" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("pullback") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FOCUS_SKULL">
+  <Binding runOnUp="false" name="TBM_FOCUS_SKULL" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("focus skull") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FOLLOW">
+  <Binding runOnUp="false" name="TBM_FOLLOW" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("follow") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_STAY">
+  <Binding runOnUp="false" name="TBM_STAY" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("stay") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_COME">
+  <Binding runOnUp="false" name="TBM_COME" category="ADDONS">
     if TortoiseBots and TortoiseBots.SendKeyIntent then TortoiseBots.SendKeyIntent("come") end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV1">
+  <Binding runOnUp="false" name="TBM_FAV1" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(1) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV2">
+  <Binding runOnUp="false" name="TBM_FAV2" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(2) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV3">
+  <Binding runOnUp="false" name="TBM_FAV3" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(3) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV4">
+  <Binding runOnUp="false" name="TBM_FAV4" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(4) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV5">
+  <Binding runOnUp="false" name="TBM_FAV5" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(5) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV6">
+  <Binding runOnUp="false" name="TBM_FAV6" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(6) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV7">
+  <Binding runOnUp="false" name="TBM_FAV7" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(7) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV8">
+  <Binding runOnUp="false" name="TBM_FAV8" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(8) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV9">
+  <Binding runOnUp="false" name="TBM_FAV9" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(9) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV10">
+  <Binding runOnUp="false" name="TBM_FAV10" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(10) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV11">
+  <Binding runOnUp="false" name="TBM_FAV11" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(11) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_FAV12">
+  <Binding runOnUp="false" name="TBM_FAV12" category="ADDONS">
     if TortoiseBots and TortoiseBots.RunMiniFavorite then TortoiseBots.RunMiniFavorite(12) end
   </Binding>
-  <Binding runOnUp="false" name="TBM_TOGGLE_WINDOW">
+  <Binding runOnUp="false" name="TBM_TOGGLE_WINDOW" category="ADDONS">
     if TortoiseBots and TortoiseBots.Toggle then TortoiseBots.Toggle() end
   </Binding>
-  <Binding runOnUp="false" name="TBM_MINI_MODE">
+  <Binding runOnUp="false" name="TBM_MINI_MODE" category="ADDONS">
     if TortoiseBots and TortoiseBots.ToggleMiniBar then TortoiseBots.ToggleMiniBar() end
   </Binding>
-  <Binding runOnUp="false" name="TBM_TARGET_PANEL">
+  <Binding runOnUp="false" name="TBM_TARGET_PANEL" category="ADDONS">
     if TortoiseBots and TortoiseBots.OpenTargetBotPanel then TortoiseBots.OpenTargetBotPanel() end
   </Binding>
 </Bindings>
