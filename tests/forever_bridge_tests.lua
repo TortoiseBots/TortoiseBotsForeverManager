@@ -48,6 +48,9 @@ return function(ctx)
         { "action come", ".tb order party come" },
         { "action free", ".tb order party free" },
         { "action release", ".tb order party release" },
+        { "action repair", ".tb order party repair" },
+        { "action sell", ".tb order party sell" },
+        { "action learn", ".tb order party train" },
     }
     for _, c in ipairs(intentCases) do
         local got = F.Translate(c[1])
@@ -230,10 +233,17 @@ return function(ctx)
     assert(F.Translate("autogear") == nil, "bare autogear should stay nil")
     assert(F.Send("autogear Alpha") == true, "F.Send should send gear upgrades")
 
+    -- Live twins: rest and use travel as `.tb cmd` now.
+    assert(F.Future.rest.on == true, "rest row should be switched on")
+    assert(F.Translate("action rest") == ".tb cmd rest", "action rest should translate")
+    assert(F.Available("action rest") == true, "action rest should be available")
+    assert(F.Future.use.on == true, "use row should be switched on")
+    assert(F.Translate("action use") == ".tb cmd use my", "action use should target the commander's target")
+    assert(F.Available("action use") == true, "action use should be available")
+
+    -- Still waiting: pullback needs a target guid, CC permissions have no panel intent.
     local futureCases = {
         { key = "pullback", cmd = "action pullback", line = ".tb cmd pullback" },
-        { key = "rest", cmd = "action rest", line = ".tb cmd rest" },
-        { key = "use", cmd = "action use", line = ".tb cmd use" },
         { key = "cc", cmd = "action cc moon Alpha", line = ".tb cc moon Alpha" },
     }
     for _, c in ipairs(futureCases) do
@@ -281,6 +291,29 @@ return function(ctx)
         "gear-end should be hidden")
     assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=in-combat cmd=gear msg=Mtank%20is%20in%20combat #g3"),
         "gear error lines must stay visible in chat")
+
+    -- Commander order reply (accepted rest)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("cmd-begin #c1")
+    TB.OnSystemMessage("cmd verb=rest status=accepted bots=2 result=party%202 #c1")
+    TB.OnSystemMessage("cmd-end count=1 records=1 verb=rest lead=Mtank bots=2 #c1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "rest accepted (2 bot", 1, true),
+        "cmd-end with accepted rest should set ok status: " .. tostring(lastStatus))
+
+    -- Commander order refusal (not bound)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=not-bound cmd=cmd msg=you%20have%20no%20bound%20bots #c2")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "not bound", 1, true),
+        "cmd error should set warn status with readable code: " .. tostring(lastStatus))
+
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "cmd-begin #c1") == true,
+        "cmd-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "cmd verb=rest status=accepted bots=2 result=party%202 #c1") == true,
+        "cmd record should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "cmd-end count=1 records=1 verb=rest lead=Mtank bots=2 #c1") == true,
+        "cmd-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=not-bound cmd=cmd msg=you%20have%20no%20bound%20bots #c2"),
+        "cmd error lines must stay visible in chat")
 
     -- Restore globals
     TB.ServerCapabilitiesKnown = origCapsKnown

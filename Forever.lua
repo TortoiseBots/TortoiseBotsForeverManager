@@ -18,7 +18,8 @@ F.WIP_TITLE = "Not currently available"
 F.WIP_TEXT  = "TortoiseBotsForever is still being ported (WIP). This comes back when the server supports it."
 F.GM_TEXT   = "Uses the server's .tb test commands: needs a GM account for now."
 
--- `.bot action <intent>` -> `.tb order <scope> <verb>`.
+-- `.bot action <intent>` -> `.tb order <scope> <verb>` (town errands ride the
+-- same path: the bot must already stand near the right NPC or mailbox).
 local ORDER_VERBS = {
     ["attack"]   = "attack my",
     ["pull"]     = "pull my",
@@ -28,22 +29,26 @@ local ORDER_VERBS = {
     ["come"]     = "come",
     ["free"]     = "free",
     ["release"]  = "release",
+    ["repair"]   = "repair",
+    ["sell"]     = "sell",
+    ["learn"]    = "train",
 }
-
 local ROLE_WORDS = { tank = "tank", heal = "healer", healer = "healer", dps = "dps", none = "none", clear = "none" }
 
--- Planned `.tb` twins: the server syntax is not confirmed yet, so every row
--- stays off. While `on` is false the intent has no translation and its control
--- stays greyed ("Not currently available"). Switching one on is one line:
--- flip its `on` to true.
+-- Planned `.tb` twins: each row switches on in one line (flip its `on`) once
+-- the server confirms the syntax. While `on` is false the intent has no
+-- translation and its control stays greyed ("Not currently available").
 -- (No ignore row: the panel has no ignore intent yet. Add one with the button.)
 F.Future = {
-    -- The commander's order path: these intents will travel as `.tb cmd <verb>`.
+    -- Needs the target's 32-hex guid, which the panel cannot build reliably:
+    -- stays on the greyed side until it can name a target.
     pullback = { on = false, match = "^action pullback$", build = function() return ".tb cmd pullback" end },
-    rest     = { on = false, match = "^action rest$",     build = function() return ".tb cmd rest" end },
-    -- The commander's task path: use travels as `.tb cmd use`.
-    use      = { on = false, match = "^action use$",      build = function() return ".tb cmd use" end },
-    -- Crowd-control permissions travel as `.tb cc ...` (exact words TBD).
+    -- Commander's order path, live: rest travels as `.tb cmd rest`.
+    rest     = { on = true,  match = "^action rest$",     build = function() return ".tb cmd rest" end },
+    -- Commander's task path, live: `my` is the commander's current target.
+    use      = { on = true,  match = "^action use$",      build = function() return ".tb cmd use my" end },
+    -- Crowd-control permissions (`.tb cc ... allow|deny`): the panel's mark
+    -- intents are a different feature, so there is nothing to map yet.
     cc       = { on = false, match = "^action cc%s+(.+)$", build = function(tail) return ".tb cc " .. tail end },
 }
 
@@ -87,6 +92,7 @@ local KNOWN_RECORD_KINDS = {
     binding = "commander",
     member = "commander",
     gear = "gear",
+    cmd = "cmd",
     plan = "plan",
     run = "run",
 }
@@ -301,6 +307,12 @@ local function formatEndSummary(kind, kv, refusedCount, refusals)
             return "Gear already up to date"
         end
         return string.format("Gear upgrades equipped (%d changed)", changed)
+    elseif kind == "cmd" then
+        local verb = kv.verb or "order"
+        if refusedCount == 0 then
+            return string.format("Order %s accepted (%s bot(s))", verb, kv.bots or "0")
+        end
+        return string.format("Order %s: %d refused (%s)", verb, refusedCount, formatRefusals(refusals))
     end
     if refusedCount == 0 then
         return string.format("%s complete", kind)
