@@ -32,6 +32,18 @@ loot history, dungeon runs, the raid tab, the bot panel (gear, bags, professions
 choices, camp chores, formations, tactics and server info. They come back by themselves when the server learns
 the full protocol: the addon then switches over without an update.
 
+## Screenshots
+
+How the panel looks today on a TortoiseBotsForever server (grey = not available yet).
+
+| Fight | Camp |
+| :---: | :---: |
+| <img src="docs/screenshots/fight.png" width="400" alt="Fight tab"> | <img src="docs/screenshots/camp.png" width="400" alt="Camp tab"> |
+| **Party** | **Guild (WIP)** |
+| <img src="docs/screenshots/party.png" width="400" alt="Party tab"> | <img src="docs/screenshots/guild.png" width="400" alt="Guild tab"> |
+
+The pictures come from the offline preview renderer (`tools/preview`), not from the game client.
+
 ## Install
 
 1. Download this repository as a zip (**Code → Download ZIP**).

@@ -54,7 +54,7 @@ function TB.RefreshVersionLine()
         TB.versionLine:SetText(text)
     end
     if TB.versionTitle and TB.versionTitle.SetText then
-        TB.versionTitle:SetText("|cffd8a657Tortoise|r|cff4ecb5aBots|r |cfffff2ccManager|r  |cff8c8270v"
+        TB.versionTitle:SetText("|cffd8a657Tortoise|r|cff4ecb5aBots|r |cfffff2ccForever Manager|r  |cff8c8270v"
             .. tostring(addonVersion) .. "|r")
     end
 end

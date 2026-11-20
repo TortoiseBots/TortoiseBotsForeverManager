@@ -658,7 +658,7 @@ CreateHeader = function(parent)
     TB.StyleTitle(title, 14)
     TB.versionTitle = title
     if TB.RefreshVersionLine then TB.RefreshVersionLine() else
-        title:SetText("|cffd8a657Tortoise|r|cff4ecb5aBots|r |cfffff2ccManager|r  |cffffd200v"
+        title:SetText("|cffd8a657Tortoise|r|cff4ecb5aBots|r |cfffff2ccForever Manager|r  |cffffd200v"
             .. (TB.version or "?") .. "|r")
     end
 
@@ -3438,8 +3438,8 @@ local function updateWipBanner(frame, show)
     if not frame._wipBanner then
         if not show then return end
         local banner = CreateFrame("Frame", nil, frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
-        banner:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -4)
-        banner:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -4)
+        banner:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -78)
+        banner:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -78)
         banner:SetHeight(28)
         if frame.GetFrameLevel and banner.SetFrameLevel then
             banner:SetFrameLevel(frame:GetFrameLevel() + 5)
@@ -3602,6 +3602,11 @@ end
 -- the text hold through hover and press.
 local function paintSwitch(btn, label, state)
     btn.switchState = state
+    if TB.Forever and not TB.Forever.Native() then
+        btn:SetText("|cff5a5a5a" .. label .. "|r")
+        TB.SetButtonActive(btn, false)
+        return
+    end
     if state == "on" then
         btn:SetText("|cffffffff" .. label .. "|r")
     elseif state == "mixed" then
@@ -3618,7 +3623,8 @@ function TB.RefreshToggleButtons()
         local state = TB.GetPartyToggleState and TB.GetPartyToggleState(key) or nil
         if key == "aoe" and not state and TB.aoeEnabled then state = "on" end
         paintSwitch(btn, btn.toggle.label, state)
-        if TB.togglePending and TB.togglePending[key] then btn:Disable() else btn:Enable() end
+        local wip = TB.Forever and not TB.Forever.Native()
+        if wip or (TB.togglePending and TB.togglePending[key]) then btn:Disable() else btn:Enable() end
         if btn.actionIntent and TB.SetButtonFeedback and TB.ActionFeedbackState then
             TB.SetButtonFeedback(btn, TB.ActionFeedbackState(btn.actionIntent))
         end
