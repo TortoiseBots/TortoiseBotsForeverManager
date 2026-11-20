@@ -22,6 +22,7 @@ return function(ctx)
     local origUnitInParty = UnitInParty
     local origUnitInRaid = UnitInRaid
     local origUnitName = UnitName
+    local origUnitGUID = UnitGUID
 
     local function resetScope()
         TB.ServerCapabilitiesKnown = function() return false end
@@ -241,24 +242,90 @@ return function(ctx)
     assert(F.Translate("action use") == ".tb cmd use my", "action use should target the commander's target")
     assert(F.Available("action use") == true, "action use should be available")
 
-    -- Still waiting: pullback needs a target guid, CC permissions have no panel intent.
-    local futureCases = {
-        { key = "pullback", cmd = "action pullback", line = ".tb cmd pullback" },
-        { key = "cc", cmd = "action cc moon Alpha", line = ".tb cc moon Alpha" },
-    }
-    for _, c in ipairs(futureCases) do
-        assert(F.Future[c.key] and F.Future[c.key].on == false,
-            "future row " .. c.key .. " should ship switched off")
-        assert(F.Translate(c.cmd) == nil, c.cmd .. " should stay nil while off")
-        assert(F.Available(c.cmd) == false, c.cmd .. " should be unavailable while off")
+    -- Still waiting: CC permissions have no panel intent.
+    assert(F.Future.cc and F.Future.cc.on == false, "cc row should ship switched off")
+    assert(F.Translate("action cc moon Alpha") == nil, "cc mark should stay nil")
+    F.Future.cc.on = true
+    assert(F.Translate("action cc moon Alpha") == ".tb cc moon Alpha", "cc should translate once on")
+    F.Future.cc.on = false
+    assert(F.Translate("action cc moon Alpha") == nil, "cc row must be off again after the check")
+
+    -- 7. Target guid conversion (UnitGUID -> 32 hex chars)
+    local WOLF = "2001180000004AC0000000000000000E"
+    local CHEST = "2C011800000C0E40000000000000ABCD"
+    local PLAYER_GUID = "0801180000000000000000000000002A"
+    UnitGUID = function(u)
+        if u == "target" then return "Creature-0-70-0-0-299-000000000E" end
+        return nil
     end
-    for _, c in ipairs(futureCases) do
-        F.Future[c.key].on = true
-        assert(F.Translate(c.cmd) == c.line, c.cmd .. " should translate once on")
-        assert(F.Available(c.cmd) == true, c.cmd .. " should be available once on")
-        F.Future[c.key].on = false
+    assert(F.TargetGuidHex() == WOLF, "young wolf example must convert")
+    UnitGUID = function() return "GameObject-0-70-0-0-12345-000000ABCD" end
+    assert(F.TargetGuidHex() == CHEST, "game object must convert")
+    UnitGUID = function() return "Player-70-0000002A" end
+    assert(F.TargetGuidHex() == PLAYER_GUID, "player guid must convert")
+    for _, bad in ipairs({
+        "Critter-0-70-0-0-299-000000000E",
+        "Creature-0-70-0-0-299-XYZ",
+        "Creature-0-70-0-0-99999999-000000000E",
+        "Creature-0-70-0-0-299-1FFFFFFFFFF",
+        "Creature-0-70-0-0-299",
+        "Player-70",
+        "",
+    }) do
+        UnitGUID = function() return bad end
+        assert(F.TargetGuidHex() == nil, "bad guid " .. bad .. " must not convert")
     end
-    assert(F.Translate("action pullback") == nil, "row must be off again after the check")
+    UnitGUID = nil
+    assert(F.TargetGuidHex() == nil, "no UnitGUID API must not convert")
+
+    -- Target-taking verbs ride `.tb cmd` with a guid, else the old path.
+    UnitGUID = function() return "Creature-0-70-0-0-299-000000000E" end
+    assert(F.Translate("action attack") == ".tb cmd attack " .. WOLF, "attack should use cmd with a guid")
+    assert(F.Translate("action pull") == ".tb cmd pull " .. WOLF, "pull should use cmd with a guid")
+    assert(F.Translate("action pull 5") == ".tb cmd pull " .. WOLF, "pull timer is dropped on the cmd path too")
+    assert(F.Translate("action pullback") == ".tb cmd pullback " .. WOLF, "pullback should use cmd with a guid")
+    assert(F.Translate("action focus skull") == ".tb cmd focus " .. WOLF, "focus should use cmd with a guid")
+    UnitGUID = function() return nil end
+    assert(F.Translate("action attack") == ".tb order party attack my", "attack keeps the order path without a guid")
+    assert(F.Translate("action pull") == ".tb order party pull my", "pull keeps the order path without a guid")
+    assert(F.Translate("action pullback") == nil, "pullback stays greyed without a guid")
+    assert(F.Translate("action focus skull") == nil, "focus stays greyed without a guid")
+    UnitGUID = nil
+
+    -- Ignore add/remove on the target
+    UnitGUID = function() return "Creature-0-70-0-0-299-000000000E" end
+    local sentBefore = #sentWhispers
+    assert(F.IgnoreTarget(true) == true, "ignore add should send")
+    assert(sentWhispers[#sentWhispers].msg == ".tb ignore party add " .. WOLF,
+        "ignore add should name the solo party and the guid")
+    TB.PartyCount = function() return 1 end
+    assert(F.IgnoreTarget(false) == true, "ignore remove should send")
+    assert(sentWhispers[#sentWhispers].msg == ".tb ignore party Tester remove " .. WOLF,
+        "ignore remove should name the bound party and the guid")
+    assert(#sentWhispers == sentBefore + 2, "ignore should send exactly two lines")
+    TB.PartyCount = function() return 0 end
+    UnitGUID = function() return nil end
+    assert(F.IgnoreTarget(true) == false, "ignore with no target should fail")
+    assert(lastStatusKind == "warn", "ignore with no target should warn")
+    UnitGUID = nil
+
+    -- Ignore replies
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("ignore-begin #i1")
+    TB.OnSystemMessage("ignore commander=Mcmd verb=add status=ok guid=" .. WOLF .. " name=Ashenvale%20Bear expires=1800 #i1")
+    TB.OnSystemMessage("ignore-end count=1 records=1 verb=add target=party:Mtank commander=Mcmd ok=1 refused=0 #i1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "Ignore add accepted (1 ok)", 1, true),
+        "ignore-end should set ok status: " .. tostring(lastStatus))
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=duplicate cmd=ignore msg=the%20list%20already%20names%20that%20mob #i3")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "duplicate", 1, true),
+        "ignore error should set warn status")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "ignore-begin #i1") == true,
+        "ignore-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "ignore-end count=1 records=1 verb=add target=party:Mtank commander=Mcmd ok=1 refused=0 #i1") == true,
+        "ignore-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=duplicate cmd=ignore msg=the%20list%20already%20names%20that%20mob #i3"),
+        "ignore error lines must stay visible in chat")
 
     -- Gear reply sequence (upgrades found)
     lastStatus, lastStatusKind = nil, nil
@@ -328,6 +395,7 @@ return function(ctx)
     UnitInParty = origUnitInParty
     UnitInRaid = origUnitInRaid
     UnitName = origUnitName
+    UnitGUID = origUnitGUID
 
     print("PASS: Forever bridge checks")
 end

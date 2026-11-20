@@ -24,13 +24,13 @@ The server does not have the full addon protocol yet. Until it does, the addon u
 
 | Where | What |
 | :--- | :--- |
-| Fight tab | Attack, Pull (without the timer), End pull, Follow, Stay, Come, Free, Use (your target) |
+| Fight tab | Attack, Pull, Pullback, Focus (your target), End pull, Follow, Stay, Come, Free, Use (your target) |
 | Party tab | Bot role (tank, healer, DPS), Summon, Kick, Log out |
 | Bot panel | Auto-gear (equips the bot's bag upgrades) |
 | Camp tab | Rest, Repair, Sell, Train, Release (repair/sell/train need the right NPC nearby) |
 
-Orders go to the bot you target, or to the whole party when you target nobody in it. Rest and Use need the party
-bound to you; pullback stays greyed until the panel can name its target.
+Orders go to the bot you target, or to the whole party when you target nobody in it. Attack, Pull, Pullback,
+Focus, Rest and Use need the party bound to you; without a target, Attack and Pull fall back to the party orders.
 
 Everything else is greyed out with a **Not currently available** tooltip: the roster list, guild and guild orders,
 loot history, dungeon runs, the raid tab, the rest of the bot panel (gear, bags, professions, spells), totems,

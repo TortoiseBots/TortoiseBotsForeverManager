@@ -40,9 +40,6 @@ local ROLE_WORDS = { tank = "tank", heal = "healer", healer = "healer", dps = "d
 -- translation and its control stays greyed ("Not currently available").
 -- (No ignore row: the panel has no ignore intent yet. Add one with the button.)
 F.Future = {
-    -- Needs the target's 32-hex guid, which the panel cannot build reliably:
-    -- stays on the greyed side until it can name a target.
-    pullback = { on = false, match = "^action pullback$", build = function() return ".tb cmd pullback" end },
     -- Commander's order path, live: rest travels as `.tb cmd rest`.
     rest     = { on = true,  match = "^action rest$",     build = function() return ".tb cmd rest" end },
     -- Commander's task path, live: `my` is the commander's current target.
@@ -93,6 +90,7 @@ local KNOWN_RECORD_KINDS = {
     member = "commander",
     gear = "gear",
     cmd = "cmd",
+    ignore = "ignore",
     plan = "plan",
     run = "run",
 }
@@ -109,6 +107,77 @@ local function inGroup()
     if TB.PartyCount and TB.PartyCount() > 0 then return true end
     if TB.RaidCount and TB.RaidCount() > 0 then return true end
     return false
+end
+
+-- Client UnitGUID ("Creature-0-70-0-0-299-000000000E", "Player-70-0000002A")
+-- -> the 32-hex form the server prints and reads (high 16 chars, then low),
+-- or nil. Lua 5.1 has no 64-bit ints, so fields are placed bit by bit:
+-- value/2^i is exact below 2^53. Ranges match the server's packing
+-- (HighGuid<<58 | realm<<42 | map<<29 | entry<<6 | subType; server<<40 | counter).
+local HEXDIGITS = "0123456789ABCDEF"
+local GUID_TYPES = { Creature = 8, Pet = 10, Vehicle = 9, GameObject = 11 }
+
+local function bitsOf(value, width)
+    local t = {}
+    for i = width - 1, 0, -1 do
+        t[#t + 1] = (math.floor(value / 2 ^ i) % 2 == 1) and "1" or "0"
+    end
+    return table.concat(t)
+end
+
+local function hexOfBits(bits)
+    local out = {}
+    for i = 1, #bits, 4 do
+        local n = 0
+        for j = 0, 3 do
+            n = n * 2 + ((string.sub(bits, i + j, i + j) == "1") and 1 or 0)
+        end
+        out[#out + 1] = string.sub(HEXDIGITS, n + 1, n + 1)
+    end
+    return table.concat(out)
+end
+
+local function uintField(s, max)
+    if type(s) ~= "string" or not string.match(s, "^%d+$") then return nil end
+    local v = tonumber(s)
+    if v % 1 ~= 0 or v < 0 or v > max then return nil end
+    return v
+end
+
+local function hexField(s, max)
+    if type(s) ~= "string" or not string.match(s, "^%x+$") then return nil end
+    local v = tonumber(s, 16)
+    if v % 1 ~= 0 or v < 0 or v > max then return nil end
+    return v
+end
+
+function F.TargetGuidHex(unit)
+    if not UnitGUID then return nil end
+    local guid = UnitGUID(unit or "target")
+    if type(guid) ~= "string" or guid == "" then return nil end
+    local parts = {}
+    for p in string.gmatch(guid, "[^-]+") do parts[#parts + 1] = p end
+    local typeNum = GUID_TYPES[parts[1]]
+    if typeNum and #parts == 7 then
+        local sub = uintField(parts[2], 0x3F)
+        local realm = uintField(parts[3], 0x1FFF)
+        local map = uintField(parts[4], 0x1FFF)
+        local server = uintField(parts[5], 0xFFFFFF)
+        local entry = uintField(parts[6], 0x7FFFFF)
+        local counter = hexField(parts[7], 0xFFFFFFFFFF)
+        if not (sub and realm and map and server and entry and counter) then return nil end
+        local high = bitsOf(typeNum, 6) .. bitsOf(realm, 16) .. bitsOf(map, 13) .. bitsOf(entry, 23) .. bitsOf(sub, 6)
+        local low = bitsOf(server, 24) .. bitsOf(counter, 40)
+        return hexOfBits(high) .. hexOfBits(low)
+    elseif parts[1] == "Player" and #parts == 3 then
+        local realm = uintField(parts[2], 0xFFFF)
+        local db = hexField(parts[3], 0xFFFFFFFF)
+        if not (realm and db) then return nil end
+        local high = bitsOf(2, 6) .. bitsOf(realm, 16) .. bitsOf(0, 42)
+        local low = bitsOf(math.floor(db / 2 ^ 32), 32) .. bitsOf(db % 2 ^ 32, 32)
+        return hexOfBits(high) .. hexOfBits(low)
+    end
+    return nil
 end
 
 -- The order scope: a targeted party bot, else the player's party (or `party` when solo).
@@ -145,6 +214,17 @@ function F.Translate(cmd)
         local intent = string.lower(rest)
         -- Pull timers are not supported by `.tb order pull`: drop the seconds.
         intent = string.gsub(intent, "^(pull)%s+%d+$", "%1")
+        -- Target-taking verbs ride the commander's orders when the target's
+        -- guid converts; attack and pull keep the `.tb order` path without one.
+        if intent == "attack" or intent == "pull" then
+            local guid = F.TargetGuidHex()
+            if guid then return ".tb cmd " .. intent .. " " .. guid end
+        elseif intent == "pullback" or intent == "focus skull" then
+            local guid = F.TargetGuidHex()
+            if not guid then return nil end
+            if intent == "pullback" then return ".tb cmd pullback " .. guid end
+            return ".tb cmd focus " .. guid
+        end
         local order = ORDER_VERBS[intent]
         if order then return ".tb order " .. orderScope() .. " " .. order end
         return nil
@@ -194,6 +274,25 @@ function F.Send(cmd)
         if TB.SetStatus then TB.SetStatus(F.WIP_TITLE .. " (WIP)", "warn") end
         return false
     end
+    if TB.trace and TB.TracePrint then TB.TracePrint("> " .. line .. "   [forever]") end
+    local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+    local ok = send and pcall(send, line, "WHISPER", nil, player)
+    if not ok and TB.SetStatus then TB.SetStatus("Could not send: type " .. line .. " in chat.", "warn") end
+    return ok and true or false
+end
+
+-- Leave-alone list for the current target: `.tb ignore <scope> add|remove <guid>`.
+-- No button sends this yet; this is the wiring it will call. Must run from a
+-- click like F.Send. Returns false (with a status line) with no target.
+function F.IgnoreTarget(add)
+    local guid = F.TargetGuidHex()
+    local player = me()
+    if not guid or not player then
+        if TB.SetStatus then TB.SetStatus(F.WIP_TITLE .. " (WIP)", "warn") end
+        return false
+    end
+    local scope = inGroup() and ("party " .. player) or "party"
+    local line = ".tb ignore " .. scope .. (add and " add " or " remove ") .. guid
     if TB.trace and TB.TracePrint then TB.TracePrint("> " .. line .. "   [forever]") end
     local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
     local ok = send and pcall(send, line, "WHISPER", nil, player)
@@ -313,6 +412,12 @@ local function formatEndSummary(kind, kv, refusedCount, refusals)
             return string.format("Order %s accepted (%s bot(s))", verb, kv.bots or "0")
         end
         return string.format("Order %s: %d refused (%s)", verb, refusedCount, formatRefusals(refusals))
+    elseif kind == "ignore" then
+        local verb = kv.verb or "ignore"
+        if refusedCount == 0 then
+            return string.format("Ignore %s accepted (%s ok)", verb, kv.ok or "0")
+        end
+        return string.format("Ignore %s: %d refused (%s)", verb, refusedCount, formatRefusals(refusals))
     end
     if refusedCount == 0 then
         return string.format("%s complete", kind)
