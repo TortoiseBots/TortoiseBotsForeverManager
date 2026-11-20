@@ -15,7 +15,7 @@ Licence: MIT (see LICENSE, kept unchanged from upstream)
 Server side
 -----------
 TortoiseBotsForever (TortoiseBots ported to ForeverCore, a community-made
-TrinityCore-based server emulator; not for official Blizzard servers)
+TrinityCore-based server emulator)
 https://github.com/TortoiseBots/TortoiseBotsForever
 
 Port

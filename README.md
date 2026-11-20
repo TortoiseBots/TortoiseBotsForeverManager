@@ -12,7 +12,7 @@ TrinityCore-based server emulator that the WoW Forever client connects to. It is
 the Tortoise WoW bots, ported to that client.
 
 The bots live in the server, so this addon only works on a ForeverCore server that runs the **TortoiseBotsForever**
-module. It does **not** work on, and is not meant for, any official Blizzard server. Problems, bugs and requests go to
+module. Problems, bugs and requests go to
 [TortoiseBotsForever](https://github.com/TortoiseBots/TortoiseBotsForever) too.
 
 This is an unofficial, community project made for educational purposes, not affiliated with Blizzard Entertainment
