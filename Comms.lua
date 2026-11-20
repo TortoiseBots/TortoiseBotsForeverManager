@@ -792,6 +792,12 @@ end
 
 function TB.OnSystemMessage(msg)
     if not msg or msg == "" then return end
+    if TB.Forever and not TB.Forever.Native() and TB.Forever.OnSystemMessage then
+        if TB.Forever.OnSystemMessage(msg) then
+            TB.lastSystem = msg
+            return
+        end
+    end
     if TB.trace and string.sub(msg, 1, 4) == "TBM:" then TB.TracePrint("< " .. msg) end
     -- Some clients double the "|" of a "|A"/"|T" pair on server-delivered
     -- chat lines before Lua sees them. Protocol fields never contain "||",

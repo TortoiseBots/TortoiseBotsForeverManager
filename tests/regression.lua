@@ -6021,5 +6021,10 @@ dofile(root .. "/tests/fake_mode.lua")({
 
 dofile(root .. "/tests/phase0_tests.lua")()
 
+dofile(root .. "/tests/forever_bridge_tests.lua")({
+    root = root,
+    chatFilters = chatFilters,
+})
+
 print("PASS: TortoiseBotsManager regression checks")
 
