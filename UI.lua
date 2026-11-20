@@ -140,6 +140,8 @@ end
 
 -- Title line (the button label) plus a wrapped description.
 local function setButtonTooltip(button, text, title)
+    button._tbTipText = text
+    button._tbTipTitle = title
     button:SetScript("OnEnter", function(self, motion)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         local binding = self.bindingIntent and TB.BindingText and TB.BindingText(self.bindingIntent) or nil
@@ -199,9 +201,11 @@ function TB.BuildGuildRowMenu(name, addButton)
     name = TB.NormalizeName and TB.NormalizeName(name) or name
     if not name or name == "" then return 0 end
     local count = 0
+    local F = TB.Forever
+    local foreverWip = F and not F.Native() or false
     local orderCap = TB.HasOrderCapability and TB.HasOrderCapability() or false
     local order = orderCap and TB.GetBotOrder and TB.GetBotOrder(name) or nil
-    local mayOrder = orderCap and TB.CanGiveOrders and TB.CanGiveOrders() or false
+    local mayOrder = (not foreverWip) and orderCap and TB.CanGiveOrders and TB.CanGiveOrders() or false
     if order and TB.ConfirmOrderCancel then
         addButton({ text = "Cancel order", notCheckable = 1, disabled = not mayOrder,
             func = function() TB.ConfirmOrderCancel(name) end })
@@ -214,7 +218,7 @@ function TB.BuildGuildRowMenu(name, addButton)
     end
     local claimed = TB.GetClaimedEntry and TB.GetClaimedEntry(name)
     if TB.ConfirmReleaseClaimedBot and not (claimed and claimed.alt) then
-        addButton({ text = "Release", notCheckable = 1,
+        addButton({ text = "Release", notCheckable = 1, disabled = foreverWip,
             func = function() TB.ConfirmReleaseClaimedBot(name) end })
         count = count + 1
     end
@@ -242,17 +246,26 @@ function TB.BuildRosterRowMenu(name, addButton)
         { action = "kick", label = "Kick from group", verb = "uninvite" },
         { action = "summon", label = "Summon", verb = "summon" },
     }
+    local F = TB.Forever
     for _, pair in ipairs(pairs) do
         if TB.IsRosterActionEligible and TB.IsRosterActionEligible(name, pair.action) then
             local verb, bot = pair.verb, name
-            addButton({ text = pair.label, notCheckable = 1,
+            local cmd = TB.BuildCommand(verb, bot)
+            local avail = not F or F.Native() or F.Available(cmd)
+            addButton({
+                text = avail and pair.label or (pair.label .. " (WIP)"),
+                notCheckable = 1,
+                disabled = not avail and 1 or nil,
+                tooltipTitle = not avail and F.WIP_TITLE or nil,
+                tooltipText = not avail and F.WIP_TEXT or nil,
                 func = function()
                     if TB.QueueRosterBatch and pair.action == "invite" then
                         TB.QueueRosterBatch(verb, { bot })
                     elseif TB.SendBotCommand then
-                        TB.SendBotCommand(TB.BuildCommand(verb, bot))
+                        TB.SendBotCommand(cmd)
                     end
-                end })
+                end
+            })
             count = count + 1
         end
     end
@@ -331,6 +344,18 @@ function TB.UI.CreateCard(parent, titleText, width, height, opts)
     return card
 end
 
+local function intentToForeverCmd(intent)
+    if not intent or intent == "" then return "" end
+    if intent == "downtime"
+        or string.sub(intent, 1, 9) == "strategy "
+        or string.sub(intent, 1, 6) == "totem "
+        or string.sub(intent, 1, 10) == "formation "
+        or string.sub(intent, 1, 9) == "behavior " then
+        return intent
+    end
+    return "action " .. intent
+end
+
 function TB.UI.CreateButton(parent, label, width, height, opts)
     opts = opts or {}
     local button = CreateFrame("Button", nil, parent, opts.template or "UIPanelButtonTemplate")
@@ -344,6 +369,11 @@ function TB.UI.CreateButton(parent, label, width, height, opts)
         button:SetText(label)
     end
     if opts.intent then button.bindingIntent = opts.intent end
+    if opts.foreverCmd ~= nil then
+        button.foreverCmd = opts.foreverCmd
+    elseif opts.intent then
+        button.foreverCmd = intentToForeverCmd(opts.intent)
+    end
 
     if opts.icon then
         local icon = button:CreateTexture(nil, "OVERLAY")
@@ -468,6 +498,8 @@ function TB.UI.CreateStepper(parent, opts)
         setButtonTooltip(minus, opts.tip, opts.tipTitle)
         setButtonTooltip(plus, opts.tip, opts.tipTitle)
     end
+    row.minus = minus
+    row.plus = plus
 
     paint()
     row.label = label
@@ -632,7 +664,7 @@ CreateHeader = function(parent)
 
     local versionLine = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     versionLine:SetPoint("TOPLEFT", parent, "TOPLEFT", (C.PAD or 10) + 32, -21)
-    versionLine:SetWidth(330)
+    versionLine:SetWidth(350)
     versionLine:SetJustifyH("LEFT")
     TB.SetTextColor(versionLine, color("faint"))
     TB.versionLine = versionLine
@@ -2840,6 +2872,10 @@ end
                             setButtonTooltip(btn, "Set " .. capturedName .. " to " .. capturedRole.label ..
                                 ". The server rebuilds the bot's kit: its behaviour switches go back to the spec's defaults.")
                         end
+                        if TB.Forever then
+                            local roleCmd = "role " .. (isPlayer and "self" or capturedName) .. " " .. playerRoleToken
+                            TB.Forever.GateControl(btn, roleCmd)
+                        end
                         btn:Show()
                     else
                         btn:Hide()
@@ -3234,6 +3270,7 @@ local arg1 = ...
     main:Hide()
     TB.frame = main
     TB.uiReady = true
+    if TB.RefreshForeverGating then TB.RefreshForeverGating() end
     if TB.InitTargetButton then TB.InitTargetButton() end
     -- Mini mode survives a reload: the login events fire before InitUI on
     -- first load, so restore the bar view here as well.
@@ -3392,8 +3429,92 @@ RefreshRosterSelection = function()
     end
 end
 
+local function updateWipBanner(frame, show)
+    if not frame then return end
+    if not frame._wipBanner then
+        if not show then return end
+        local banner = CreateFrame("Frame", nil, frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        banner:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -4)
+        banner:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -4)
+        banner:SetHeight(28)
+        if frame.GetFrameLevel and banner.SetFrameLevel then
+            banner:SetFrameLevel(frame:GetFrameLevel() + 5)
+        end
+        TB.ApplySurface(banner, "card")
+        local text = banner:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        text:SetPoint("CENTER", banner, "CENTER", 0, 0)
+        text:SetWidth(450)
+        text:SetJustifyH("CENTER")
+        text:SetText("|cffffd200Not currently available — TortoiseBotsForever is still being ported (WIP).|r")
+        frame._wipBanner = banner
+    end
+    if show then frame._wipBanner:Show() else frame._wipBanner:Hide() end
+end
+
+local function gateControl(F, control, cmd, restoreOnly)
+    if not control then return end
+    if restoreOnly or F.Native() then
+        F.RestoreAvailable(control)
+    else
+        F.GateControl(control, cmd or "")
+    end
+end
+
+function TB.RefreshForeverGating(restoreOnly)
+    local F = TB.Forever
+    if not F then return end
+    local wip = (not restoreOnly) and (not F.Native())
+
+    for _, btn in pairs(TB.actionButtons or {}) do
+        if btn.Enable and btn.Disable then
+            local cmd = btn.foreverCmd or (btn.actionIntent and intentToForeverCmd(btn.actionIntent)) or ""
+            gateControl(F, btn, cmd, restoreOnly)
+        end
+    end
+    for _, btn in pairs(TB.toggleButtons or {}) do
+        gateControl(F, btn, "", restoreOnly)
+    end
+    for _, btn in pairs(TB.stancePills or {}) do
+        gateControl(F, btn, "", restoreOnly)
+    end
+    for _, btn in pairs(TB.formationPills or {}) do
+        gateControl(F, btn, "", restoreOnly)
+    end
+    for _, stepper in pairs(TB.pullTimers or {}) do
+        gateControl(F, stepper.minus, "", restoreOnly)
+        gateControl(F, stepper.plus, "", restoreOnly)
+    end
+    if TB.lifecycleButtons then
+        for _, key in ipairs({ "invite", "fill", "altsummary" }) do
+            gateControl(F, TB.lifecycleButtons[key], "", restoreOnly)
+        end
+    end
+    gateControl(F, TB.infoButton, "", restoreOnly)
+    if TB.raidFrame then
+        for _, key in ipairs({ "tankface", "douse", "customToggle", "customCheck", "statusButton" }) do
+            gateControl(F, TB.raidFrame[key], "", restoreOnly)
+        end
+    end
+    if TB.guildFrame then
+        gateControl(F, TB.guildFrame.rankBtn, "", restoreOnly)
+        gateControl(F, TB.guildFrame.orderBtn, "", restoreOnly)
+    end
+    if TB.ccMenu then
+        gateControl(F, TB.ccMenu.clearAll, "", restoreOnly)
+    end
+
+    if not restoreOnly then
+        for _, frame in ipairs({ TB.rosterFrame, TB.guildFrame, TB.lootFrame, TB.dungeonFrame, TB.raidFrame }) do
+            updateWipBanner(frame, wip)
+        end
+    end
+end
+
 function TB.RefreshActionControls()
     if not TB.actionButtons then return end
+    if TB.Forever and TB.Forever.Native() then
+        TB.RefreshForeverGating(true)
+    end
     local hasEnemyTarget = hasValidEnemyTarget()
     local targetOnly = { "attack", "pull", "pullback", "interrupt" }
     for _, key in ipairs(targetOnly) do
@@ -3446,6 +3567,7 @@ function TB.RefreshActionControls()
     if TB.scopeGearButton then
         if botName and serverHasCap("inventory") then TB.scopeGearButton:Show() else TB.scopeGearButton:Hide() end
     end
+    if TB.RefreshForeverGating then TB.RefreshForeverGating() end
 end
 
 -- Repaints the waiting / answer state onto every action button: one call
