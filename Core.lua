@@ -241,8 +241,13 @@ function TB.ClearLogHistory()
     TortoiseBotsDB.logHistory = {}
 end
 
-local function isBotCommandMessage(message)
+local function isBotCommandMessage(message, event, sender)
     if not message then return false end
+    if TB.Forever and not TB.Forever.Native() and TB.Forever.ShouldHideChatMessage then
+        if TB.Forever.ShouldHideChatMessage(event, message, sender) then
+            return true
+        end
+    end
     if string.find(message, "^%.bot$") or string.find(message, "^%.bot%s") or string.find(message, "^TBM:") then
         return true
     end
@@ -286,8 +291,8 @@ local CHAT_FILTER_EVENTS = {
 local function installBotCommandChatFilter()
     if TB._chatFilterInstalled then return end
     local installed = false
-    local function filter(_, _, message)
-        if isBotCommandMessage(message) then return true end
+    local function filter(_, event, message, sender)
+        if isBotCommandMessage(message, event, sender) then return true end
     end
     if ChatFrame_AddMessageEventFilter then
         for eventName in pairs(CHAT_FILTER_EVENTS) do

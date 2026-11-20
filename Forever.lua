@@ -9,7 +9,8 @@
 -- Once the server advertises its capabilities (native protocol), this file
 -- steps aside and the addon runs exactly as on TortoiseBots.
 
-TB = TB or {}
+TortoiseBots = TortoiseBots or {}
+local TB = TortoiseBots
 TB.Forever = TB.Forever or {}
 local F = TB.Forever
 
@@ -29,7 +30,52 @@ local ORDER_VERBS = {
     ["release"]  = "release",
 }
 
-local ROLE_WORDS = { tank = "tank", heal = "healer", healer = "healer", dps = "dps" }
+local ROLE_WORDS = { tank = "tank", heal = "healer", healer = "healer", dps = "dps", none = "none", clear = "none" }
+
+local READABLE_CODES = {
+    ["no-engine"] = "no engine running",
+    ["action-not-registered"] = "action not supported",
+    ["not-in-group"] = "not in party",
+    ["no-commander"] = "no commander",
+    ["no-entrance"] = "no instance entrance",
+    ["no-such-player"] = "not in world",
+    ["not-a-bot"] = "not a logged-in bot",
+    ["no-party"] = "not in a party",
+    ["no-bots"] = "no bots in party",
+    ["ambiguous-party"] = "ambiguous party",
+    ["missing-target"] = "missing target",
+    ["missing-verb"] = "missing verb",
+    ["unknown-verb"] = "unknown verb",
+    ["missing-argument"] = "missing argument",
+    ["unexpected-argument"] = "unexpected argument",
+    ["bad-argument"] = "invalid argument",
+    ["missing-role"] = "missing role",
+    ["bad-role"] = "invalid role",
+    ["not-allowed"] = "not allowed",
+    ["engine-not-built"] = "engine not built",
+    ["queue-full"] = "order queue full",
+    ["nothing-to-assist"] = "nothing to assist",
+    ["party-refused"] = "party invite refused",
+    ["teleport-refused"] = "teleport refused",
+}
+
+local KNOWN_RECORD_KINDS = {
+    order = "order",
+    role = "role",
+    tele = "tele",
+    party = "party",
+    ["party-join"] = "party",
+    enter = "enter",
+    master = "master",
+    equip = "equip",
+    commander = "commander",
+    binding = "commander",
+    member = "commander",
+    plan = "plan",
+    run = "run",
+}
+
+local activeBatches = {}
 
 local function trim(s) return (string.gsub(s or "", "^%s*(.-)%s*$", "%1")) end
 
@@ -37,12 +83,22 @@ local function me()
     return UnitName and UnitName("player") or nil
 end
 
--- The order scope: a targeted party bot, else the whole party.
+local function inGroup()
+    if TB.PartyCount and TB.PartyCount() > 0 then return true end
+    if TB.RaidCount and TB.RaidCount() > 0 then return true end
+    return false
+end
+
+-- The order scope: a targeted party bot, else the player's party (or `party` when solo).
 local function orderScope()
     if UnitExists and UnitExists("target") and UnitIsPlayer and UnitIsPlayer("target")
         and not (UnitIsUnit and UnitIsUnit("target", "player"))
         and ((UnitInParty and UnitInParty("target")) or (UnitInRaid and UnitInRaid("target"))) then
         return UnitName("target")
+    end
+    local player = me()
+    if player and inGroup() then
+        return "party " .. player
     end
     return "party"
 end
@@ -78,6 +134,7 @@ function F.Translate(cmd)
     local player = me()
     if verb == "add" and player then return ".tb login " .. name .. " " .. player end
     if verb == "remove" or verb == "logout" then return ".tb logout " .. name end
+    if verb == "invite" and player then return ".tb group " .. name .. " " .. player end
     if verb == "uninvite" then return ".tb ungroup " .. name end
     if verb == "summon" and player then return ".tb tele " .. name .. " to " .. player end
     return nil
@@ -120,4 +177,184 @@ function F.MarkUnavailable(control, title)
         GameTooltip:Show()
     end)
     control:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+end
+
+local function urlDecode(s)
+    if not s then return "" end
+    return (string.gsub(s, "%%(%x%x)", function(hex)
+        return string.char(tonumber(hex, 16))
+    end))
+end
+
+local function parseKV(rest)
+    local kv = {}
+    for k, v in string.gmatch(rest or "", "(%S+)=([^%s]*)") do
+        kv[k] = urlDecode(v)
+    end
+    return kv
+end
+
+local function readableCode(code)
+    if not code or code == "" then return "refused" end
+    return READABLE_CODES[code] or string.gsub(code, "%-", " ")
+end
+
+local function formatRefusals(refusals)
+    local parts = {}
+    for _, r in ipairs(refusals) do
+        local reason = readableCode(r.code)
+        if r.bot and r.bot ~= "" then
+            table.insert(parts, r.bot .. ": " .. reason)
+        else
+            table.insert(parts, reason)
+        end
+    end
+    return table.concat(parts, ", ")
+end
+
+local function emitStatus(text, kind, rawMsg)
+    if TB.SetStatus then TB.SetStatus(text, kind) end
+    if TB.LogMessage then TB.LogMessage(text, rawMsg or text) end
+end
+
+local function isTortoiseWarn(body)
+    return string.find(body, "not logged in", 1, true)
+        or string.find(body, "not grouped", 1, true)
+        or string.find(body, "not ungrouped", 1, true)
+        or string.find(body, "is not a logged%-in bot")
+        or string.find(body, "no character named", 1, true)
+        or string.find(body, "neither a host bot", 1, true)
+        or string.find(body, "does not exist", 1, true)
+        or string.find(body, "not created", 1, true)
+        or string.find(body, "not teleported", 1, true)
+        or string.find(body, "not converted", 1, true)
+        or string.find(body, "not changed", 1, true)
+        or string.find(body, "no result sent", 1, true)
+        or string.find(body, "INCOMPLETE", 1, true)
+        or string.find(body, "FAILED", 1, true)
+end
+
+local function formatEndSummary(kind, kv, refusedCount, refusals)
+    if kind == "order" then
+        local verb = kv.verb or "order"
+        if refusedCount == 0 then
+            return string.format("Order %s queued (%s bot(s))", verb, kv.queued or kv.bots or "0")
+        end
+        return string.format("Order %s: %d refused (%s)", verb, refusedCount, formatRefusals(refusals))
+    elseif kind == "role" then
+        local role = kv.role or "role"
+        if refusedCount == 0 then
+            return string.format("Role %s applied (%s bot(s))", role, kv.bots or "0")
+        end
+        return string.format("Role %s: %d refused (%s)", role, refusedCount, formatRefusals(refusals))
+    elseif kind == "tele" then
+        if refusedCount == 0 then
+            local target = kv.target or ((kv.started or "1") .. " bot(s)")
+            return string.format("Teleport started (%s)", target)
+        end
+        return string.format("Teleport: %d refused (%s)", refusedCount, formatRefusals(refusals))
+    end
+    if refusedCount == 0 then
+        return string.format("%s complete", kind)
+    end
+    return string.format("%s: %d refused (%s)", kind, refusedCount, formatRefusals(refusals))
+end
+
+-- Parse `.tb` system replies while the server does not speak native TBM.
+function F.OnSystemMessage(msg)
+    if type(msg) ~= "string" or msg == "" then return false end
+    if issecretvalue and issecretvalue(msg) then return false end
+
+    if string.find(msg, "You do not have permission", 1, true) then
+        emitStatus("Forever bridge: needs a GM account (.tb test commands).", "warn", msg)
+        return true
+    end
+
+    local tbBody = string.match(msg, "^TortoiseBots:%s*(.+)$")
+    if tbBody then
+        emitStatus(tbBody, isTortoiseWarn(tbBody) and "warn" or "ok", msg)
+        return true
+    end
+
+    local errRest = string.match(msg, "^error%s+(.+)$")
+    if errRest then
+        local kv = parseKV(errRest)
+        local prefix = (kv.cmd and kv.cmd ~= "") and (kv.cmd .. ": ") or ""
+        local detail = (kv.msg and kv.msg ~= "") and (" - " .. kv.msg) or ""
+        emitStatus(prefix .. readableCode(kv.code) .. detail, "warn", msg)
+        return true
+    end
+
+    local beginKind = string.match(msg, "^([a-z]+)%-begin$") or string.match(msg, "^([a-z]+)%-begin%s+")
+    if beginKind then
+        activeBatches[beginKind] = { refusals = {} }
+        return true
+    end
+
+    local endKind, endRest = string.match(msg, "^([a-z]+)%-end%s*(.*)$")
+    if endKind then
+        local kv = parseKV(endRest)
+        local batch = activeBatches[endKind]
+        activeBatches[endKind] = nil
+        local refusals = batch and batch.refusals or {}
+        local refusedCount = tonumber(kv.refused) or #refusals
+        local summary = formatEndSummary(endKind, kv, refusedCount, refusals)
+        emitStatus(summary, (refusedCount == 0) and "ok" or "warn", msg)
+        return true
+    end
+
+    local recKind, recRest = string.match(msg, "^([a-z]+%-?[a-z]*)%+?%s+(.+)$")
+    local batchKey = recKind and KNOWN_RECORD_KINDS[recKind]
+    if batchKey then
+        local kv = parseKV(recRest)
+        if kv.status == "refused" then
+            activeBatches[batchKey] = activeBatches[batchKey] or { refusals = {} }
+            table.insert(activeBatches[batchKey].refusals, {
+                bot = kv.bot,
+                code = kv.code,
+                msg = kv.msg,
+            })
+        end
+        return true
+    end
+
+    return false
+end
+
+local function isSelfSender(sender)
+    if not sender or sender == "" then return true end
+    local player = me()
+    if not player then return false end
+    local short = string.match(sender, "^([^%-]+)") or sender
+    return short == player
+end
+
+-- Hide bridge chatter (outgoing `.tb` self-whispers and structured `*-begin`/`*-end` lines).
+-- Keep errors and permission messages visible.
+function F.ShouldHideChatMessage(event, message, sender)
+    if type(message) ~= "string" then return false end
+    if issecretvalue and issecretvalue(message) then return false end
+
+    if string.find(message, "^%.tb$") or string.find(message, "^%.tb%s") then
+        if event == "CHAT_MSG_WHISPER_INFORM" then return true end
+        if event == "CHAT_MSG_WHISPER" and isSelfSender(sender) then return true end
+        return false
+    end
+
+    if string.find(message, "^error%s") then return false end
+
+    if event == nil or event == "CHAT_MSG_SYSTEM" then
+        if string.match(message, "^[a-z]+%-begin$") or string.match(message, "^[a-z]+%-begin%s+") then
+            return true
+        end
+        if string.match(message, "^[a-z]+%-end$") or string.match(message, "^[a-z]+%-end%s+") then
+            return true
+        end
+        local recKind = string.match(message, "^([a-z]+%-?[a-z]*)%+?%s+%a+=")
+        if recKind and KNOWN_RECORD_KINDS[recKind] then
+            return true
+        end
+    end
+
+    return false
 end
