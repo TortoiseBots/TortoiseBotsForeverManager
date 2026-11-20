@@ -10,6 +10,6 @@ mkdir -p "$out" "$assets/tex"
 rm -f "$out"/*.json
 lua5.1 "$here/scenes.lua" "$root" "$out"
 # addon Media textures are converted fresh on every run
-rm -f "$assets"/tex/interface_addons_tortoisebotsmanager_*
+rm -f "$assets"/tex/interface_addons_tortoisebotsmanager_* "$assets"/tex/interface_addons_tortoisebotsforevermanager_*
 python3 "$here/fetch_textures.py" "$out" "$assets/tex"
 node "$here/render.js" "$out" "$assets" "$@"

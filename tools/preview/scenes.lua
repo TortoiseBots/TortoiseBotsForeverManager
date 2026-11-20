@@ -14,6 +14,7 @@ local root = arg[1] or "."
 -- scene, script or event handler makes the run exit 1.
 local out = arg[2] or "preview-out"
 local smoke = out == "-"
+local forever = os.getenv("TB_FOREVER_PREVIEW") == "1"
 local failures = {}
 dofile(root .. "/tools/preview/mock.lua")
 
@@ -34,7 +35,10 @@ this = core
 core.scripts.OnEvent(core)
 
 local function sys(msg) TB.OnSystemMessage(msg) end
-local function feed(lines) for _, l in ipairs(lines) do sys(l) end end
+local function feed(lines)
+    if forever then return end
+    for _, l in ipairs(lines) do sys(l) end
+end
 
 local function tick(n)
     for _ = 1, n or 3 do
@@ -54,7 +58,12 @@ feed({
     "TBM:VERSION|1.12.0",
     "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service",
 })
-Mock.world.party = {
+Mock.world.party = forever and {
+    { name = "Thalgrim", class = "Warrior", level = 60 },
+    { name = "Seraphine", class = "Priest", level = 60 },
+    { name = "Vexmora", class = "Mage", level = 59 },
+    { name = "Kaelthor", class = "Paladin", level = 60 },
+} or {
     { name = "Thalgrim", class = "Warrior", level = 60 },
     { name = "Seraphine", class = "Priest", level = 60 },
     { name = "Vexmora", class = "Mage", level = 59 },

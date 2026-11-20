@@ -90,12 +90,17 @@ def main():
     for p in sorted(paths):
         dest = os.path.join(cache, key(p))
         local = p.replace("\\", "/")
-        if local.lower().startswith("interface/addons/tortoisebotsmanager/"):
-            src = os.path.join(repo, local[len("interface/addons/tortoisebotsmanager/"):] + ".tga")
-            if os.path.exists(src):
-                from PIL import Image
-                Image.open(src).save(dest)
-                continue
+        handled = False
+        for prefix in ("interface/addons/tortoisebotsforevermanager/", "interface/addons/tortoisebotsmanager/"):
+            if local.lower().startswith(prefix):
+                src = os.path.join(repo, local[len(prefix):] + ".tga")
+                if os.path.exists(src):
+                    from PIL import Image
+                    Image.open(src).save(dest)
+                    handled = True
+                    break
+        if handled:
+            continue
         dest = os.path.join(cache, key(p))
         if os.path.exists(dest) or os.path.exists(dest + ".missing"):
             continue
