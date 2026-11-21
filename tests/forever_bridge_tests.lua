@@ -23,11 +23,15 @@ return function(ctx)
     local origUnitInRaid = UnitInRaid
     local origUnitName = UnitName
     local origUnitGUID = UnitGUID
+    local origIsInGuild = IsInGuild
+    local origIsGuildOrderContext = TB.IsGuildOrderContext
 
     local function resetScope()
         TB.ServerCapabilitiesKnown = function() return false end
         TB.PartyCount = function() return 0 end
         TB.RaidCount = function() return 0 end
+        IsInGuild = function() return false end
+        TB.IsGuildOrderContext = nil
         UnitExists = function(u) return u == "player" end
         UnitIsPlayer = function() return false end
         UnitIsUnit = function(a, b) return a == b end
@@ -414,6 +418,117 @@ return function(ctx)
     assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=bad-id cmd=quest msg=invalid%20quest%20id #q4"),
         "quest error lines must stay visible in chat")
 
+    -- 8. Craft orders & guild orders (Batch 10)
+    resetScope()
+    -- Personal craft order (not in guild)
+    assert(F.Translate("order Alpha craft 4234 5") == ".tb craftorder create Alpha 4234 5",
+        "personal craft order should translate to .tb craftorder create")
+    assert(F.Available("order Alpha craft 4234 5") == true, "personal craft order should be available")
+    assert(F.Translate("order Alpha cancel") == ".tb craftorder cancel Alpha",
+        "personal order cancel should translate to .tb craftorder cancel")
+    assert(F.Translate("order Alpha status") == ".tb craftorder status Alpha",
+        "personal order status should translate to .tb craftorder status")
+
+    -- Guild orders (farm/buy always guildorder; craft in guild -> guildorder)
+    assert(F.Translate("order Alpha farm 2318 10") == ".tb guildorder create Alpha 2318 10 farm",
+        "farm order should translate to .tb guildorder create ... farm")
+    assert(F.Translate("order Alpha buy 2318 10") == ".tb guildorder create Alpha 2318 10 buy",
+        "buy order should translate to .tb guildorder create ... buy")
+    assert(F.Translate("order list") == ".tb guildorder list",
+        "order list should translate to .tb guildorder list")
+
+    IsInGuild = function() return true end
+    assert(F.Translate("order Alpha craft 4234 5") == ".tb guildorder create Alpha 4234 5 craft",
+        "guild craft order should translate to .tb guildorder create ... craft")
+    assert(F.Translate("order Alpha cancel") == ".tb guildorder cancel Alpha",
+        "guild order cancel should translate to .tb guildorder cancel")
+    assert(F.Translate("order Alpha status") == ".tb guildorder status Alpha",
+        "guild order status should translate to .tb guildorder status")
+    resetScope()
+
+    -- Extra fields (hours, inf, keep, gold=, bring=) are dropped and noted once in status line
+    assert(F.Translate("order Alpha craft 4234 5 inf keep gold=500 bring=100,200") == ".tb craftorder create Alpha 4234 5",
+        "extra order fields should be dropped")
+    lastStatus, lastStatusKind = nil, nil
+    assert(F.Send("order Alpha craft 4234 5 2 keep gold=500") == true, "order with dropped fields should send")
+    assert(sentWhispers[#sentWhispers].msg == ".tb craftorder create Alpha 4234 5",
+        "sent whisper should drop extra fields")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "dropped", 1, true),
+        "first order with dropped fields should note it in status line: " .. tostring(lastStatus))
+    lastStatus, lastStatusKind = nil, nil
+    assert(F.Send("order Alpha craft 4234 5 inf") == true, "second order with dropped fields should send")
+    assert(lastStatus == nil, "dropped-fields status notice should only fire once")
+
+    -- Unmapped order payloads stay nil
+    for _, unmapped in ipairs({
+        "order Alpha enchant 7420",
+        "order Alpha meet",
+        "order Alpha steps",
+        "order search craft herb",
+        "order Alpha preview craft 4234 5",
+        "order reassign Alpha Beta",
+        "order access",
+        "order rank 1",
+    }) do
+        assert(F.Translate(unmapped) == nil, "unmapped order payload should stay nil: " .. unmapped)
+        assert(F.Available(unmapped) == false, "unmapped order payload should be unavailable: " .. unmapped)
+    end
+
+    -- Craftorder & guildorder replies + chat filtering
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("craftorder-begin #co1")
+    TB.OnSystemMessage("craftorder op=create bot=Alpha item=4234 done=0 total=5 state=working #co1")
+    TB.OnSystemMessage("craftorder-end count=1 records=1 #co1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "Craft order for Alpha", 1, true)
+        and string.find(lastStatus or "", "4234", 1, true),
+        "craftorder create should set ok status: " .. tostring(lastStatus))
+
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("craftorder-begin #co2")
+    TB.OnSystemMessage("craftorder op=cancel bot=Alpha state=cancelled #co2")
+    TB.OnSystemMessage("craftorder-end count=1 records=1 #co2")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "cancelled", 1, true),
+        "craftorder cancel should set ok status: " .. tostring(lastStatus))
+
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=no-recipe cmd=craftorder msg=4234 #co3")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "does not know that recipe", 1, true),
+        "craftorder no-recipe error should set warn status: " .. tostring(lastStatus))
+
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("guildorder-begin #go1")
+    TB.OnSystemMessage("guildorder op=create bot=Alpha guild=1 item=2318 want=10 type=farm state=working #go1")
+    TB.OnSystemMessage("guildorder-end count=1 records=1 #go1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "Guild order (farm) for Alpha", 1, true),
+        "guildorder create should set ok status: " .. tostring(lastStatus))
+
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("guildorder-begin #go2")
+    TB.OnSystemMessage("guildorder op=list botguid=12 guild=1 item=2318 have=2 want=10 type=farm state=working #go2")
+    TB.OnSystemMessage("guildorder-end count=1 records=1 guild=1 #go2")
+    assert(lastStatusKind == "ok" and lastStatus == "Guild orders: 1 order(s)",
+        "guildorder list should summarize count: " .. tostring(lastStatus))
+
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=no-rank-right cmd=guildorder msg=requires%20edit%20officer%20notes #go3")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "officer-note permission", 1, true),
+        "guildorder no-rank-right error should set warn status: " .. tostring(lastStatus))
+
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "craftorder-begin #co1") == true,
+        "craftorder-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "craftorder op=create bot=Alpha item=4234 done=0 total=5 state=working #co1") == true,
+        "craftorder record should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "craftorder-end count=1 records=1 #co1") == true,
+        "craftorder-end should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "guildorder-begin #go1") == true,
+        "guildorder-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "guildorder op=create bot=Alpha guild=1 item=2318 want=10 type=farm state=working #go1") == true,
+        "guildorder record should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "guildorder-end count=1 records=1 #go1") == true,
+        "guildorder-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=no-recipe cmd=craftorder msg=4234 #co3"),
+        "craftorder error lines must stay visible in chat")
+
     -- Restore globals
     TB.ServerCapabilitiesKnown = origCapsKnown
     TB.SetStatus = origSetStatus
@@ -428,6 +543,8 @@ return function(ctx)
     UnitInRaid = origUnitInRaid
     UnitName = origUnitName
     UnitGUID = origUnitGUID
+    IsInGuild = origIsInGuild
+    TB.IsGuildOrderContext = origIsGuildOrderContext
 
     print("PASS: Forever bridge checks")
 end

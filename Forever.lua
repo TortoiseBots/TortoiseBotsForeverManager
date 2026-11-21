@@ -74,10 +74,25 @@ local READABLE_CODES = {
     ["nothing-to-assist"] = "nothing to assist",
     ["party-refused"] = "party invite refused",
     ["teleport-refused"] = "teleport refused",
+    ["no-bot"] = "not a logged-in bot",
+    ["not-in-guild"] = "bot not in a guild",
+    ["wrong-guild"] = "bot is in another guild",
+    ["no-rank-right"] = "missing guild officer-note permission",
+    ["bad-item"] = "invalid item",
+    ["bad-amount"] = "invalid amount",
+    ["bad-type"] = "invalid order type",
+    ["no-recipe"] = "bot does not know that recipe",
+    ["store-unavailable"] = "order store unavailable",
+    ["store-write-failed"] = "could not save order",
+    ["no-guild"] = "not in a guild",
+    ["not-found"] = "no active order",
+    ["order-mismatch"] = "order item mismatch",
 }
 
 local KNOWN_RECORD_KINDS = {
     order = "order",
+    craftorder = "craftorder",
+    guildorder = "guildorder",
     role = "role",
     tele = "tele",
     party = "party",
@@ -97,8 +112,16 @@ local KNOWN_RECORD_KINDS = {
 }
 
 local activeBatches = {}
+local droppedOrderFieldsNoted = false
 
 local function trim(s) return (string.gsub(s or "", "^%s*(.-)%s*$", "%1")) end
+
+local function isGuildOrder()
+    if TB.IsGuildOrderContext then
+        return TB.IsGuildOrderContext() and true or false
+    end
+    return (IsInGuild and IsInGuild()) and true or false
+end
 
 local function me()
     return UnitName and UnitName("player") or nil
@@ -237,6 +260,36 @@ function F.Translate(cmd)
         return nil
     end
 
+    if verb == "order" then
+        local trimmedRest = trim(rest)
+        if string.lower(trimmedRest) == "list" then
+            return ".tb guildorder list"
+        end
+        local obot, osub = string.match(trimmedRest, "^(%S+)%s+(%S+)%s*$")
+        if obot and osub then
+            osub = string.lower(osub)
+            if osub == "cancel" or osub == "status" then
+                return (isGuildOrder() and ".tb guildorder " or ".tb craftorder ") .. osub .. " " .. obot
+            end
+        end
+        local gbot, gkind, gitem, gamt = string.match(trimmedRest, "^(%S+)%s+(%S+)%s+(%d+)%s+(%d+)")
+        if gbot and gkind and gitem and gamt then
+            gkind = string.lower(gkind)
+            local itemNum, amtNum = tonumber(gitem), tonumber(gamt)
+            if itemNum and itemNum > 0 and amtNum and amtNum > 0 then
+                if gkind == "farm" or gkind == "buy" then
+                    return ".tb guildorder create " .. gbot .. " " .. gitem .. " " .. gamt .. " " .. gkind
+                elseif gkind == "craft" then
+                    if isGuildOrder() then
+                        return ".tb guildorder create " .. gbot .. " " .. gitem .. " " .. gamt .. " craft"
+                    end
+                    return ".tb craftorder create " .. gbot .. " " .. gitem .. " " .. gamt
+                end
+            end
+        end
+        return nil
+    end
+
     local name, extra = string.match(rest, "^(%S+)%s*(.*)$")
     if verb == "role" and name then
         local word = ROLE_WORDS[string.lower(extra or "")]
@@ -279,6 +332,13 @@ function F.Send(cmd)
     if not line or not player then
         if TB.SetStatus then TB.SetStatus(F.WIP_TITLE .. " (WIP)", "warn") end
         return false
+    end
+    local _, _, _, _, _, extra = string.find(trim(cmd), "^[Oo][Rr][Dd][Ee][Rr]%s+(%S+)%s+(%S+)%s+(%d+)%s+(%d+)%s*(.*)$")
+    if extra and trim(extra) ~= "" and not droppedOrderFieldsNoted then
+        droppedOrderFieldsNoted = true
+        if TB.SetStatus then
+            TB.SetStatus("Forever bridge: hours, keep, gold, and bring options are not supported yet and were dropped.", "warn")
+        end
     end
     if TB.trace and TB.TracePrint then TB.TracePrint("> " .. line .. "   [forever]") end
     local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
@@ -385,13 +445,51 @@ local function isTortoiseWarn(body)
         or string.find(body, "FAILED", 1, true)
 end
 
-local function formatEndSummary(kind, kv, refusedCount, refusals)
+local function formatEndSummary(kind, kv, refusedCount, refusals, batch)
     if kind == "order" then
         local verb = kv.verb or "order"
         if refusedCount == 0 then
             return string.format("Order %s queued (%s bot(s))", verb, kv.queued or kv.bots or "0")
         end
         return string.format("Order %s: %d refused (%s)", verb, refusedCount, formatRefusals(refusals))
+    elseif kind == "craftorder" then
+        local rec = (batch and batch.last) or {}
+        local op = rec.op or ""
+        if op == "create" then
+            return string.format("Craft order for %s: item %s x%s (%s)",
+                rec.bot or "bot", rec.item or "?", rec.total or "?", rec.state or "working")
+        elseif op == "cancel" then
+            return string.format("Craft order for %s cancelled", rec.bot or "bot")
+        elseif op == "status" then
+            if rec.state == "none" then
+                return string.format("Craft order for %s: none", rec.bot or "bot")
+            end
+            return string.format("Craft order for %s: item %s %s/%s (%s)",
+                rec.bot or "bot", rec.item or "?", rec.done or "0", rec.total or "?", rec.state or "?")
+        end
+        return "Craft order complete"
+    elseif kind == "guildorder" then
+        local rec = (batch and batch.last) or {}
+        local op = rec.op or ""
+        local count = tonumber(kv.records) or (batch and batch.records) or 0
+        if op == "create" then
+            return string.format("Guild order (%s) for %s: item %s x%s (%s)",
+                rec.type or "order", rec.bot or "bot", rec.item or "?", rec.want or "?", rec.state or "working")
+        elseif op == "cancel" then
+            return string.format("Guild order for %s cancelled", rec.bot or "bot")
+        elseif op == "status" then
+            if rec.state == "none" then
+                return string.format("Guild order for %s: none", rec.bot or "bot")
+            end
+            return string.format("Guild order (%s) for %s: item %s %s/%s (%s)",
+                rec.type or "order", rec.bot or "bot", rec.item or "?", rec.have or "0", rec.want or "?", rec.state or "?")
+        elseif op == "work" then
+            return string.format("Guild order for %s working: item %s %s/%s (%s)",
+                rec.bot or "bot", rec.item or "?", rec.have or "0", rec.want or "?", rec.state or "working")
+        elseif op == "list" or kv.guild then
+            return string.format("Guild orders: %d order(s)", count)
+        end
+        return "Guild order complete"
     elseif kind == "role" then
         local role = kv.role or "role"
         if refusedCount == 0 then
@@ -476,7 +574,7 @@ function F.OnSystemMessage(msg)
         activeBatches[endKind] = nil
         local refusals = batch and batch.refusals or {}
         local refusedCount = tonumber(kv.refused) or #refusals
-        local summary = formatEndSummary(endKind, kv, refusedCount, refusals)
+        local summary = formatEndSummary(endKind, kv, refusedCount, refusals, batch)
         emitStatus(summary, (refusedCount == 0) and "ok" or "warn", msg)
         return true
     end
@@ -485,8 +583,10 @@ function F.OnSystemMessage(msg)
     local batchKey = recKind and KNOWN_RECORD_KINDS[recKind]
     if batchKey then
         local kv = parseKV(recRest)
+        activeBatches[batchKey] = activeBatches[batchKey] or { refusals = {} }
+        activeBatches[batchKey].last = kv
+        activeBatches[batchKey].records = (activeBatches[batchKey].records or 0) + 1
         if kv.status == "refused" then
-            activeBatches[batchKey] = activeBatches[batchKey] or { refusals = {} }
             table.insert(activeBatches[batchKey].refusals, {
                 bot = kv.bot,
                 code = kv.code,
