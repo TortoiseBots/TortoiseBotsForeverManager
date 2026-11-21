@@ -26,16 +26,18 @@ The server does not have the full addon protocol yet. Until it does, the addon u
 | :--- | :--- |
 | Fight tab | Attack, Pull, Pullback, Focus (your target), End pull, Follow, Stay, Come, Free, Use (your target) |
 | Party tab | Bot role (tank, healer, DPS), Summon, Kick, Log out |
-| Bot panel | Auto-gear (equips the bot's bag upgrades) |
+| Bot panel | Auto-gear (equips the bot's bag upgrades), Craft orders (personal craft orders from Professions view) |
+| Guild & Orders | Guild orders (Farm, Buy, Craft, Cancel, Active orders list; search/enchants/meet/rank stay grey) |
 | Camp tab | Rest, Repair, Sell, Train, Release, Accept quests (repair/sell/train need the right NPC nearby) |
 
 Orders go to the bot you target, or to the whole party when you target nobody in it. Attack, Pull, Pullback,
 Focus, Rest and Use need the party bound to you; without a target, Attack and Pull fall back to the party orders.
 
-Everything else is greyed out with a **Not currently available** tooltip: the roster list, guild and guild orders,
-loot history, dungeon runs, the raid tab, the rest of the bot panel (gear, bags, professions, spells), totems,
-blessings, class choices, the rest of the camp chores, formations, tactics and server info. They come back by
-themselves when the server learns the full protocol: the addon then switches over without an update.
+Everything else is greyed out with a **Not currently available** tooltip: the roster list, guild roster sync,
+order search/enchants/meet/rank, loot history, dungeon runs, the raid tab, the rest of the bot panel (gear, bags,
+professions list, spells), totems, blessings, class choices, the rest of the camp chores, formations, tactics and
+server info. They come back by themselves when the server learns the full protocol: the addon then switches over
+without an update.
 
 ## Screenshots
 

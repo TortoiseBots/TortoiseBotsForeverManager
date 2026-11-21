@@ -4,7 +4,7 @@
 ## Author: Sagiroth
 ## X-Website: https://github.com/TortoiseBots/TortoiseBotsForeverManager
 ## X-Port: TortoiseBotsForeverManager (ForeverCore); port notes in PORT-NOTES.md
-## Version: 2.4.1-forever.1
+## Version: 2.4.1-forever.2
 ## SavedVariables: TortoiseBotsDB
 
 Constants.lua

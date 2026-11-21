@@ -138,11 +138,21 @@ local function color(name) return COL[name] or { 1, 1, 1 } end
 -- above the window code read them (they were globals by accident).
 local orderHours = 1
 local selectedItemId = nil
+local orderContext = "guild"
 local function now() return (GetTime and GetTime()) or 0 end
 
 -- ── capability gate + permission ─────────────────────────────────────────
 function TB.HasOrderCapability()
-    return TB.HasServerCapability and TB.HasServerCapability(CAP) or false
+    if TB.HasServerCapability and TB.HasServerCapability(CAP) then return true end
+    if TB.Forever and not TB.Forever.Native() and TB.Forever.Available("order list") then
+        return true
+    end
+    return false
+end
+
+function TB.IsGuildOrderContext()
+    if orderContext ~= "guild" then return false end
+    return (IsInGuild and IsInGuild()) and true or false
 end
 
 -- Player Buy orders are refused while the server sends guild-order-nobuy.
@@ -4003,12 +4013,37 @@ function TB.RefreshOrderChrome(order)
             win.statusLine:SetText("No order on this bot.")
         end
     end
+    local bridge = TB.Forever and not TB.Forever.Native()
+    local mayOrderHere = TB.CanGiveOrders() or (bridge and not TB.IsGuildOrderContext() and orderKind == "craft")
     if win.cancelBtn then
-        if order and TB.CanGiveOrders() then win.cancelBtn:Enable() else win.cancelBtn:Disable() end
+        if (order or (bridge and windowBot)) and (TB.CanGiveOrders() or (bridge and not TB.IsGuildOrderContext())) then
+            win.cancelBtn:Enable()
+        else
+            win.cancelBtn:Disable()
+        end
     end
     if win.sendBtn then
         if orderGuild then win.sendBtn:Disable()
-        elseif TB.CanGiveOrders() then win.sendBtn:Enable() else win.sendBtn:Disable() end
+        elseif mayOrderHere then win.sendBtn:Enable() else win.sendBtn:Disable() end
+    end
+    if TB.Forever and win.kindPills then
+        for kind, pill in pairs(win.kindPills) do
+            if TB.Forever.Native() then
+                TB.Forever.RestoreAvailable(pill)
+            else
+                local sample = (kind == "enchant") and "" or ("order " .. (windowBot or "Alpha") .. " " .. kind .. " 1 1")
+                TB.Forever.GateControl(pill, sample)
+            end
+        end
+    end
+    if TB.Forever and win.sendBtn then
+        if TB.Forever.Native() then
+            TB.Forever.RestoreAvailable(win.sendBtn)
+        elseif orderKind == "enchant" then
+            TB.Forever.MarkUnavailable(win.sendBtn)
+        else
+            TB.Forever.RestoreAvailable(win.sendBtn)
+        end
     end
     if win.sendItemsBtn then
         local canSend, mailReason = TB.CanSendOrderItems(windowBot)
@@ -4027,6 +4062,13 @@ function TB.RefreshOrderChrome(order)
             GameTooltip:Show()
         end)
         win.sendItemsBtn:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+        if TB.Forever then
+            if TB.Forever.Native() then
+                TB.Forever.RestoreAvailable(win.sendItemsBtn)
+            else
+                TB.Forever.MarkUnavailable(win.sendItemsBtn)
+            end
+        end
     end
     local isEnchantKind = orderKind == "enchant"
     if win.amountBox then
@@ -4196,6 +4238,7 @@ function TB.OpenOrderWindow(bot)
     if TB.CloseBlessings then TB.CloseBlessings() end
     local switched = windowBot ~= bot or orderGuild
     orderGuild = false
+    orderContext = "guild"
     orderStep = 1
     windowBot = bot
     -- An old "sent, waiting..." line from an earlier give means nothing now.
@@ -4345,6 +4388,7 @@ function TB.PrefillCraftOrder(bot, recipe)
     if itemId <= 0 then return false end
     if TB.ProfessionRecipeOrderable and not TB.ProfessionRecipeOrderable(recipe) then return false end
     if not TB.OpenOrderWindow(bot) then return false end
+    orderContext = "personal"
     TB.SetOrderKind("craft")
     local name = nil
     if GetItemInfo then name = GetItemInfo(itemId) end
