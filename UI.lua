@@ -3541,7 +3541,8 @@ function TB.RefreshActionControls()
         if serverHasCap("downtime") then TB.actionButtons.downtime:Enable() else TB.actionButtons.downtime:Disable() end
     end
     if TB.actionButtons.use then
-        if serverHasCap("use-object") then TB.actionButtons.use:Show() else TB.actionButtons.use:Hide() end
+        local useFuture = TB.Forever and TB.Forever.Future and TB.Forever.Future.use
+        if serverHasCap("use-object") or (useFuture and useFuture.on) then TB.actionButtons.use:Show() else TB.actionButtons.use:Hide() end
     end
     if TB.UpdateFormationPills then TB.UpdateFormationPills() end
     if TB.UpdateStancePills then TB.UpdateStancePills() end

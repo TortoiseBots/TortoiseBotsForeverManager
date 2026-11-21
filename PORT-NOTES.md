@@ -32,9 +32,15 @@ While the server has not sent `TBM:CAPS`:
 
 | Addon button | Sent to the server |
 |---|---|
-| Attack, Pull | `.tb order <scope> attack my` / `pull my` (the pull timer is dropped) |
+| Attack, Pull | `.tb cmd attack <guid>` / `pull <guid>` (your target; `.tb order` without one) |
+| Pullback, Focus | `.tb cmd pullback <guid>` / `focus <guid>` (your target) |
 | End pull, Follow, Stay, Come, Free, Release | `.tb order <scope> endpull` / `follow` / `stay` / `come` / `free` / `release` |
-| Bot role tank / healer / DPS | `.tb role <bot> tank` / `healer` / `dps` |
+| Rest | `.tb cmd rest` (needs the party bound to you) |
+| Use | `.tb cmd use my` (uses your target; needs the party bound to you) |
+| Repair, Sell, Train | `.tb order <scope> repair` / `sell` / `train` (the bot must stand near the right NPC) |
+| Accept quests (camp tab) | `.tb quest <bot> accept *` (the offered quest on that bot) |
+| Bot role tank / healer / DPS (a bot, or yourself) | `.tb role <bot> tank` / `healer` / `dps`, `.tb role <word>` for yourself |
+| Auto-gear, Equip upgrades (bot panel) | `.tb gear <bot> upgrade` |
 | Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |
 
 - `<scope>` is the targeted party bot, else `party <you>`.

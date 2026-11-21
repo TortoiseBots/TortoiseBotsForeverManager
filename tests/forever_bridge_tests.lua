@@ -22,6 +22,7 @@ return function(ctx)
     local origUnitInParty = UnitInParty
     local origUnitInRaid = UnitInRaid
     local origUnitName = UnitName
+    local origUnitGUID = UnitGUID
 
     local function resetScope()
         TB.ServerCapabilitiesKnown = function() return false end
@@ -48,6 +49,9 @@ return function(ctx)
         { "action come", ".tb order party come" },
         { "action free", ".tb order party free" },
         { "action release", ".tb order party release" },
+        { "action repair", ".tb order party repair" },
+        { "action sell", ".tb order party sell" },
+        { "action learn", ".tb order party train" },
     }
     for _, c in ipairs(intentCases) do
         local got = F.Translate(c[1])
@@ -67,7 +71,14 @@ return function(ctx)
     assert(F.Translate("role Alpha healer") == ".tb role Alpha healer")
     assert(F.Translate("role Alpha dps") == ".tb role Alpha dps")
     assert(F.Translate("role Alpha none") == ".tb role Alpha none")
-    assert(F.Translate("role self tank") == nil)
+    assert(F.Translate("role self tank") == ".tb role tank")
+    assert(F.Translate("role self healer") == ".tb role healer")
+    assert(F.Translate("role self bogus") == nil)
+    assert(F.Translate("command Alpha d equip upgrades") == ".tb gear Alpha upgrade")
+    assert(F.Translate("command Alpha d something else") == nil)
+    assert(F.Translate("command Alpha accept") == ".tb quest Alpha accept *", "quest accept should translate")
+    assert(F.Available("command Alpha accept") == true, "quest accept should be available")
+    assert(F.Translate("command Alpha share") == nil, "quest share needs an id the panel has not")
 
     -- Unknown / unsupported -> nil
     for _, unk in ipairs({ "action stop", "action flee", "roster", "alts", "", "unknowncmd Alpha" }) do
@@ -219,6 +230,190 @@ return function(ctx)
     assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "You do not have permission to perform that function."),
         "permission errors must stay visible in chat")
 
+    -- 6. Gear upgrades and planned twins
+    assert(F.Translate("autogear Alpha") == ".tb gear Alpha upgrade",
+        "autogear should translate to .tb gear upgrade")
+    assert(F.Available("autogear Alpha") == true, "autogear should be available")
+    assert(F.Translate("autogear") == nil, "bare autogear should stay nil")
+    assert(F.Send("autogear Alpha") == true, "F.Send should send gear upgrades")
+
+    -- Live twins: rest and use travel as `.tb cmd` now.
+    assert(F.Future.rest.on == true, "rest row should be switched on")
+    assert(F.Translate("action rest") == ".tb cmd rest", "action rest should translate")
+    assert(F.Available("action rest") == true, "action rest should be available")
+    assert(F.Future.use.on == true, "use row should be switched on")
+    assert(F.Translate("action use") == ".tb cmd use my", "action use should target the commander's target")
+    assert(F.Available("action use") == true, "action use should be available")
+
+    -- Still waiting: CC permissions have no panel intent.
+    assert(F.Future.cc and F.Future.cc.on == false, "cc row should ship switched off")
+    assert(F.Translate("action cc moon Alpha") == nil, "cc mark should stay nil")
+    F.Future.cc.on = true
+    assert(F.Translate("action cc moon Alpha") == ".tb cc moon Alpha", "cc should translate once on")
+    F.Future.cc.on = false
+    assert(F.Translate("action cc moon Alpha") == nil, "cc row must be off again after the check")
+
+    -- 7. Target guid conversion (UnitGUID -> 32 hex chars)
+    local WOLF = "2001180000004AC0000000000000000E"
+    local CHEST = "2C011800000C0E40000000000000ABCD"
+    local PLAYER_GUID = "0801180000000000000000000000002A"
+    UnitGUID = function(u)
+        if u == "target" then return "Creature-0-70-0-0-299-000000000E" end
+        return nil
+    end
+    assert(F.TargetGuidHex() == WOLF, "young wolf example must convert")
+    UnitGUID = function() return "GameObject-0-70-0-0-12345-000000ABCD" end
+    assert(F.TargetGuidHex() == CHEST, "game object must convert")
+    UnitGUID = function() return "Player-70-0000002A" end
+    assert(F.TargetGuidHex() == PLAYER_GUID, "player guid must convert")
+    for _, bad in ipairs({
+        "Critter-0-70-0-0-299-000000000E",
+        "Creature-0-70-0-0-299-XYZ",
+        "Creature-0-70-0-0-99999999-000000000E",
+        "Creature-0-70-0-0-299-1FFFFFFFFFF",
+        "Creature-0-70-0-0-299",
+        "Player-70",
+        "",
+    }) do
+        UnitGUID = function() return bad end
+        assert(F.TargetGuidHex() == nil, "bad guid " .. bad .. " must not convert")
+    end
+    UnitGUID = nil
+    assert(F.TargetGuidHex() == nil, "no UnitGUID API must not convert")
+
+    -- Target-taking verbs ride `.tb cmd` with a guid, else the old path.
+    UnitGUID = function() return "Creature-0-70-0-0-299-000000000E" end
+    assert(F.Translate("action attack") == ".tb cmd attack " .. WOLF, "attack should use cmd with a guid")
+    assert(F.Translate("action pull") == ".tb cmd pull " .. WOLF, "pull should use cmd with a guid")
+    assert(F.Translate("action pull 5") == ".tb cmd pull " .. WOLF, "pull timer is dropped on the cmd path too")
+    assert(F.Translate("action pullback") == ".tb cmd pullback " .. WOLF, "pullback should use cmd with a guid")
+    assert(F.Translate("action focus skull") == ".tb cmd focus " .. WOLF, "focus should use cmd with a guid")
+    UnitGUID = function() return nil end
+    assert(F.Translate("action attack") == ".tb order party attack my", "attack keeps the order path without a guid")
+    assert(F.Translate("action pull") == ".tb order party pull my", "pull keeps the order path without a guid")
+    assert(F.Translate("action pullback") == nil, "pullback stays greyed without a guid")
+    assert(F.Translate("action focus skull") == nil, "focus stays greyed without a guid")
+    UnitGUID = nil
+
+    -- Ignore add/remove on the target
+    UnitGUID = function() return "Creature-0-70-0-0-299-000000000E" end
+    local sentBefore = #sentWhispers
+    assert(F.IgnoreTarget(true) == true, "ignore add should send")
+    assert(sentWhispers[#sentWhispers].msg == ".tb ignore party add " .. WOLF,
+        "ignore add should name the solo party and the guid")
+    TB.PartyCount = function() return 1 end
+    assert(F.IgnoreTarget(false) == true, "ignore remove should send")
+    assert(sentWhispers[#sentWhispers].msg == ".tb ignore party Tester remove " .. WOLF,
+        "ignore remove should name the bound party and the guid")
+    assert(#sentWhispers == sentBefore + 2, "ignore should send exactly two lines")
+    TB.PartyCount = function() return 0 end
+    UnitGUID = function() return nil end
+    assert(F.IgnoreTarget(true) == false, "ignore with no target should fail")
+    assert(lastStatusKind == "warn", "ignore with no target should warn")
+    UnitGUID = nil
+
+    -- Ignore replies
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("ignore-begin #i1")
+    TB.OnSystemMessage("ignore commander=Mcmd verb=add status=ok guid=" .. WOLF .. " name=Ashenvale%20Bear expires=1800 #i1")
+    TB.OnSystemMessage("ignore-end count=1 records=1 verb=add target=party:Mtank commander=Mcmd ok=1 refused=0 #i1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "Ignore add accepted (1 ok)", 1, true),
+        "ignore-end should set ok status: " .. tostring(lastStatus))
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=duplicate cmd=ignore msg=the%20list%20already%20names%20that%20mob #i3")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "duplicate", 1, true),
+        "ignore error should set warn status")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "ignore-begin #i1") == true,
+        "ignore-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "ignore-end count=1 records=1 verb=add target=party:Mtank commander=Mcmd ok=1 refused=0 #i1") == true,
+        "ignore-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=duplicate cmd=ignore msg=the%20list%20already%20names%20that%20mob #i3"),
+        "ignore error lines must stay visible in chat")
+
+    -- Gear reply sequence (upgrades found)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("gear-begin #g1")
+    TB.OnSystemMessage("gear bot=Mtank slot=15 old=2504 new=15210 #g1")
+    TB.OnSystemMessage("gear bot=Mpriest changed=0 #g1")
+    TB.OnSystemMessage("gear-end count=2 records=2 target=party:Mtank bots=2 changed=1 #g1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "1 changed", 1, true),
+        "gear-end with changed=1 should set ok status: " .. tostring(lastStatus))
+
+    -- Gear reply sequence (nothing to equip)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("gear-begin #g2")
+    TB.OnSystemMessage("gear bot=Mpriest changed=0 #g2")
+    TB.OnSystemMessage("gear-end count=1 records=1 target=Mpriest bots=1 changed=0 #g2")
+    assert(lastStatusKind == "ok" and lastStatus == "Gear already up to date",
+        "gear-end with changed=0 should say up to date")
+
+    -- Gear refusal (in combat)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=in-combat cmd=gear msg=Mtank%20is%20in%20combat #g3")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "in combat", 1, true),
+        "gear error should set warn status with readable code: " .. tostring(lastStatus))
+
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "gear-begin #g1") == true,
+        "gear-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "gear bot=Mtank slot=15 old=2504 new=15210 #g1") == true,
+        "per-bot gear line should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "gear-end count=2 records=2 target=party:Mtank bots=2 changed=1 #g1") == true,
+        "gear-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=in-combat cmd=gear msg=Mtank%20is%20in%20combat #g3"),
+        "gear error lines must stay visible in chat")
+
+    -- Commander order reply (accepted rest)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("cmd-begin #c1")
+    TB.OnSystemMessage("cmd verb=rest status=accepted bots=2 result=party%202 #c1")
+    TB.OnSystemMessage("cmd-end count=1 records=1 verb=rest lead=Mtank bots=2 #c1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "rest accepted (2 bot", 1, true),
+        "cmd-end with accepted rest should set ok status: " .. tostring(lastStatus))
+
+    -- Commander order refusal (not bound)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("error code=not-bound cmd=cmd msg=you%20have%20no%20bound%20bots #c2")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "not bound", 1, true),
+        "cmd error should set warn status with readable code: " .. tostring(lastStatus))
+
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "cmd-begin #c1") == true,
+        "cmd-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "cmd verb=rest status=accepted bots=2 result=party%202 #c1") == true,
+        "cmd record should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "cmd-end count=1 records=1 verb=rest lead=Mtank bots=2 #c1") == true,
+        "cmd-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=not-bound cmd=cmd msg=you%20have%20no%20bound%20bots #c2"),
+        "cmd error lines must stay visible in chat")
+
+    -- Quest replies (accept ok, filtered refusal, status list)
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("quest-begin #q1")
+    TB.OnSystemMessage("quest bot=Mtank verb=accept status=accepted #q1")
+    TB.OnSystemMessage("quest-end count=1 records=1 bot=Mtank verb=accept #q1")
+    assert(lastStatusKind == "ok" and string.find(lastStatus or "", "Quest accept complete", 1, true),
+        "quest-end should set ok status: " .. tostring(lastStatus))
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("quest-begin #q2")
+    TB.OnSystemMessage("quest bot=Mtank verb=accept id=123 status=refused code=filtered #q2")
+    TB.OnSystemMessage("quest-end count=1 records=1 bot=Mtank verb=accept #q2")
+    assert(lastStatusKind == "warn" and string.find(lastStatus or "", "filtered", 1, true),
+        "filtered quest should set warn status: " .. tostring(lastStatus))
+    lastStatus, lastStatusKind = nil, nil
+    TB.OnSystemMessage("quest-begin #q3")
+    TB.OnSystemMessage("quest bot=Mtank id=1 title=First%20Quest status=incomplete objectives=1%2F5 #q3")
+    TB.OnSystemMessage("quest bot=Mtank id=2 title=Second%20Quest status=complete objectives=5%2F5 #q3")
+    TB.OnSystemMessage("quest-end count=2 records=2 bot=Mtank verb=status quests=2 #q3")
+    assert(lastStatusKind == "ok" and lastStatus == "Quest log (2 quest(s))",
+        "quest status should summarize the log: " .. tostring(lastStatus))
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "quest-begin #q1") == true,
+        "quest-begin should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "quest bot=Mtank verb=accept status=accepted #q1") == true,
+        "quest record should be hidden")
+    assert(chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "quest-end count=1 records=1 bot=Mtank verb=accept #q1") == true,
+        "quest-end should be hidden")
+    assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "error code=bad-id cmd=quest msg=invalid%20quest%20id #q4"),
+        "quest error lines must stay visible in chat")
+
     -- Restore globals
     TB.ServerCapabilitiesKnown = origCapsKnown
     TB.SetStatus = origSetStatus
@@ -232,6 +427,7 @@ return function(ctx)
     UnitInParty = origUnitInParty
     UnitInRaid = origUnitInRaid
     UnitName = origUnitName
+    UnitGUID = origUnitGUID
 
     print("PASS: Forever bridge checks")
 end
