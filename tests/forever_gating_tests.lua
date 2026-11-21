@@ -28,7 +28,7 @@ return function(root)
 
     assert(TB.rosterFrame and TB.rosterFrame._wipBanner and TB.rosterFrame._wipBanner:IsVisible(),
         "Roster tab should show WIP banner when Native() is false")
-    assert(TB.versionLine and string.find(TB.versionLine:GetText() or "", "WIP: TortoiseBotsForever bridge", 1, true),
+    assert(TB.versionLine and string.find(TB.versionLine:GetText() or "", "some features are not available yet while the bots are being fully ported", 1, true),
         "Main window header should show WIP bridge notice")
 
     -- When TBM:CAPS arrives (Native() becomes true), normal gating takes over.
@@ -41,7 +41,7 @@ return function(root)
     stopBtn.scripts.OnEnter(stopBtn)
     assert(tipTitle ~= "Not currently available", "Original tooltip should be restored once Native() is true")
     assert(not TB.rosterFrame._wipBanner:IsVisible(), "Roster WIP banner should hide once Native() is true")
-    assert(not string.find(TB.versionLine:GetText() or "", "WIP: TortoiseBotsForever bridge", 1, true),
+    assert(not string.find(TB.versionLine:GetText() or "", "some features are not available yet while the bots are being fully ported", 1, true),
         "WIP bridge notice should clear once Native() is true")
 
     GameTooltip.SetText = realSetText

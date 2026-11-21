@@ -28,7 +28,9 @@ function TB.InitMinimap()
         local x, y = db.minimap.x or C.MINIMAP_DEFAULT.x, db.minimap.y or C.MINIMAP_DEFAULT.y
         local ang = math.atan2(y, x)
         btn:ClearAllPoints()
-        btn:SetPoint("CENTER", Minimap, "CENTER", math.cos(ang)*C.MINIMAP_RADIUS, math.sin(ang)*C.MINIMAP_RADIUS)
+        -- On the minimap's rim whatever its size (the modern minimap is larger than 1.12's 140 px).
+        local radius = ((Minimap.GetWidth and Minimap:GetWidth()) or 140) / 2 + 5
+        btn:SetPoint("CENTER", Minimap, "CENTER", math.cos(ang)*radius, math.sin(ang)*radius)
     end
     updatePos()
 

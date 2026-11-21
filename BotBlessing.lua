@@ -659,7 +659,7 @@ local function createCell(parent)
     cell:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     cell.border = cell:CreateTexture(nil, "BACKGROUND")
     cell.border:SetAllPoints(cell)
-    cell.border:SetTexture(0.13, 0.13, 0.15, 0.85)
+    TB.SetColorTexture(cell.border, 0.13, 0.13, 0.15, 0.85)
     cell.icon = cell:CreateTexture(nil, "ARTWORK")
     cell.icon:SetWidth(16); cell.icon:SetHeight(16)
     cell.icon:SetPoint("TOP", cell, "TOP", 0, -3)
@@ -669,7 +669,7 @@ local function createCell(parent)
     cell.label:SetJustifyH("CENTER")
     local hl = cell:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(cell)
-    hl:SetTexture(1, 1, 1, 0.15)
+    TB.SetColorTexture(hl, 1, 1, 1, 0.15)
     cell:SetScript("OnEnter", function(self, motion)
         local snapshot = TB.GetBlessings(self.bot)
         local val = snapshot and snapshot.classes[self.word]
@@ -696,14 +696,14 @@ local function createAuraCell(parent)
     cell:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     cell.border = cell:CreateTexture(nil, "BACKGROUND")
     cell.border:SetAllPoints(cell)
-    cell.border:SetTexture(0.13, 0.13, 0.15, 0.85)
+    TB.SetColorTexture(cell.border, 0.13, 0.13, 0.15, 0.85)
     cell.label = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     cell.label:SetPoint("CENTER", cell, "CENTER", 0, 0)
     cell.label:SetWidth(AURA_W - 10)
     cell.label:SetJustifyH("CENTER")
     local hl = cell:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(cell)
-    hl:SetTexture(1, 1, 1, 0.15)
+    TB.SetColorTexture(hl, 1, 1, 1, 0.15)
     cell:SetScript("OnEnter", function(self, motion)
         local snap = TB.GetChoice and TB.GetChoice(self.bot, "aura")
         local val = snap and snap.value
@@ -916,7 +916,7 @@ end
 
 local function renderCell(cell, value, enabled)
     if value and value ~= "auto" and C.BLESSING_ICONS[value] then
-        cell.border:SetTexture(0.24, 0.22, 0.18, 0.95)
+        TB.SetColorTexture(cell.border, 0.24, 0.22, 0.18, 0.95)
         cell.icon:SetTexture(C.BLESSING_ICONS[value])
         cell.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         cell.icon:Show()
@@ -925,7 +925,7 @@ local function renderCell(cell, value, enabled)
         cell.label:SetText(SHORT_BLESSING[value] or TB.BlessingLabel(value))
         cell.label:SetTextColor(0.95, 0.92, 0.84)
     else
-        cell.border:SetTexture(0.13, 0.13, 0.15, 0.85)
+        TB.SetColorTexture(cell.border, 0.13, 0.13, 0.15, 0.85)
         cell.icon:Hide()
         cell.label:ClearAllPoints()
         cell.label:SetPoint("CENTER", cell, "CENTER", 0, 0)
@@ -939,11 +939,11 @@ local function renderAuraCell(cell, bot)
     local snap = TB.GetChoice and TB.GetChoice(bot, "aura")
     local val = snap and snap.value
     if val and val ~= "auto" then
-        cell.border:SetTexture(0.24, 0.22, 0.18, 0.95)
+        TB.SetColorTexture(cell.border, 0.24, 0.22, 0.18, 0.95)
         cell.label:SetText(shortAuraLabel(val))
         cell.label:SetTextColor(0.95, 0.92, 0.84)
     else
-        cell.border:SetTexture(0.13, 0.13, 0.15, 0.85)
+        TB.SetColorTexture(cell.border, 0.13, 0.13, 0.15, 0.85)
         cell.label:SetText(val and "Auto" or "…")
         cell.label:SetTextColor(0.50, 0.49, 0.46)
     end
@@ -1263,8 +1263,7 @@ end
 -- A changed group re-asks once things settle, while the window is open.
 local dueAt
 local watcher = CreateFrame("Frame", "TortoiseBotsManagerBlessingWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
-watcher:RegisterEvent("PARTY_MEMBERS_CHANGED")
-watcher:RegisterEvent("RAID_ROSTER_UPDATE")
+TB.RegisterGroupEvents(watcher)
 watcher:SetScript("OnEvent", function(self, event, ...)
     if win and win:IsVisible() then dueAt = now() + 1 end
     if TB.UpdateBlessingButton then TB.UpdateBlessingButton() end

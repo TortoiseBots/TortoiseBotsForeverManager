@@ -702,12 +702,12 @@ function TB.CreateLootTab(parent)
     header:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, -56)
     local hbg = header:CreateTexture(nil, "BACKGROUND")
     hbg:SetAllPoints(header)
-    hbg:SetTexture(1, 1, 1, 0.05)
+    TB.SetColorTexture(hbg, 1, 1, 1, 0.05)
     local hline = header:CreateTexture(nil, "BORDER")
     hline:SetHeight(1)
     hline:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
     hline:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
-    hline:SetTexture(1, 1, 1, 0.08)
+    TB.SetColorTexture(hline, 1, 1, 1, 0.08)
     for _, key in ipairs({ "time", "bot", "item", "result", "reason", "source" }) do
         local col = COLS[key]
         local hfs = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -738,7 +738,7 @@ function TB.CreateLootTab(parent)
 
         local hl = row:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints(row)
-        hl:SetTexture(1, 1, 1, 0.06)
+        TB.SetColorTexture(hl, 1, 1, 1, 0.06)
 
         local function colText(col, font)
             local fs = row:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
@@ -865,7 +865,7 @@ function TB.RefreshLootView()
             end
 
             local badge = rowBadge(entry)
-            row.badgeBg:SetTexture(badge.bg[1], badge.bg[2], badge.bg[3], badge.bg[4])
+            TB.SetColorTexture(row.badgeBg, badge.bg[1], badge.bg[2], badge.bg[3], badge.bg[4])
             row.resultText:SetText(badge.label)
             TB.SetTextColor(row.resultText, badge.text)
 

@@ -57,6 +57,7 @@ end
 -- Surfaces by depth: "window" (top level), "card" (a group inside a
 -- window), "row" (a list line), "input" (an edit box well).
 function TB.ApplySurface(frame, kind)
+    TB.EnsureBackdrop(frame)
     if not frame or not frame.SetBackdrop then return frame end
     frame:SetBackdrop(FLAT_BACKDROP)
     kind = kind or "card"
@@ -83,27 +84,27 @@ function TB.AddWindowHeader(frame, height)
     if not frame or frame.headerBand then return end
     local band = frame:CreateTexture(nil, "BACKGROUND")
     local h = theme("header")
-    band:SetTexture(h[1], h[2], h[3], h[4] or 1)
+    TB.SetColorTexture(band, h[1], h[2], h[3], h[4] or 1)
     band:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
     band:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
     band:SetHeight(height or 30)
     frame.headerBand = band
     local rule = frame:CreateTexture(nil, "BORDER")
     local a = C.COLOR.accent
-    rule:SetTexture(a[1], a[2], a[3], 0.85)
+    TB.SetColorTexture(rule, a[1], a[2], a[3], 0.85)
     rule:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
     rule:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
     rule:SetHeight(1)
     frame.headerRule = rule
     local line = frame:CreateTexture(nil, "BORDER")
     local hl = theme("hairline")
-    line:SetTexture(0, 0, 0, 0.55)
+    TB.SetColorTexture(line, 0, 0, 0, 0.55)
     line:SetPoint("TOPLEFT", band, "BOTTOMLEFT", 0, 0)
     line:SetPoint("TOPRIGHT", band, "BOTTOMRIGHT", 0, 0)
     line:SetHeight(1)
     frame.headerLine = line
     local lite = frame:CreateTexture(nil, "BORDER")
-    lite:SetTexture(hl[1], hl[2], hl[3], hl[4])
+    TB.SetColorTexture(lite, hl[1], hl[2], hl[3], hl[4])
     lite:SetPoint("TOPLEFT", line, "BOTTOMLEFT", 0, 0)
     lite:SetPoint("TOPRIGHT", line, "BOTTOMRIGHT", 0, 0)
     lite:SetHeight(1)
@@ -113,7 +114,7 @@ end
 function TB.AddHairline(frame, y, inset, alpha)
     local line = frame:CreateTexture(nil, "ARTWORK")
     local hl = theme("hairline")
-    line:SetTexture(hl[1], hl[2], hl[3], alpha or hl[4])
+    TB.SetColorTexture(line, hl[1], hl[2], hl[3], alpha or hl[4])
     line:SetPoint("TOPLEFT", frame, "TOPLEFT", inset or 0, y or 0)
     line:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(inset or 0), y or 0)
     line:SetHeight(1)
@@ -218,20 +219,25 @@ function TB.StyleButton(button, kind)
         local tex = button[get](button)
         if tex then tex:SetTexture(nil) end
     end
+    -- The modern UIPanelButtonTemplate paints its red face with three pieces.
+    for _, piece in ipairs({ "Left", "Middle", "Right" }) do
+        if button[piece] and button[piece].Hide then button[piece]:Hide() end
+    end
     local pushed = button:GetPushedTexture()
-    if pushed then pushed:SetTexture(0, 0, 0, 0.35) end
+    if pushed then TB.SetColorTexture(pushed, 0, 0, 0, 0.35) end
     local hl = button:GetHighlightTexture()
     if hl then
-        hl:SetTexture(c.accent[1], c.accent[2], c.accent[3], 0.16)
+        TB.SetColorTexture(hl, c.accent[1], c.accent[2], c.accent[3], 0.16)
         hl:ClearAllPoints()
         hl:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
         hl:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
     end
+    TB.EnsureBackdrop(button)
     button:SetBackdrop(FLAT_BACKDROP)
     button.flatKind = kind or button.flatKind or "action"
     if not button.sheen and button.CreateTexture then
         local sheen = button:CreateTexture(nil, "BACKGROUND")
-        if not TB.SetMediaTexture(sheen, "gradient") then sheen:SetTexture(1, 1, 1, 0) end
+        if not TB.SetMediaTexture(sheen, "gradient") then TB.SetColorTexture(sheen, 1, 1, 1, 0) end
         sheen:SetVertexColor(1, 1, 1, SHEEN_ALPHA)
         sheen:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
         sheen:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
@@ -342,11 +348,11 @@ function TB.StyleTab(button)
     button.smallLabel = true
     TB.StyleButton(button)
     local hl = button.GetHighlightTexture and button:GetHighlightTexture()
-    if hl then hl:SetTexture(1, 1, 1, 0.05) end
+    if hl then TB.SetColorTexture(hl, 1, 1, 1, 0.05) end
     if not button.underline and button.CreateTexture then
         local u = button:CreateTexture(nil, "OVERLAY")
         local a = C.COLOR.accentHi
-        u:SetTexture(a[1], a[2], a[3], 1)
+        TB.SetColorTexture(u, a[1], a[2], a[3], 1)
         u:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 4, 0)
         u:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -4, 0)
         u:SetHeight(2)
@@ -382,6 +388,7 @@ function TB.StyleCloseButton(button, x, y, size)
         button:ClearAllPoints()
         button:SetPoint("TOPRIGHT", button:GetParent(), "TOPRIGHT", x or -6, y or -6)
     end
+    TB.EnsureBackdrop(button)
     if button.SetBackdrop then
         button:SetBackdrop(FLAT_BACKDROP)
         button:SetBackdropColor(0.11, 0.115, 0.13, 1)
@@ -399,7 +406,7 @@ function TB.StyleCloseButton(button, x, y, size)
     button.glyph = glyph
     local hl = button.GetHighlightTexture and button:GetHighlightTexture()
     if hl then
-        hl:SetTexture(0.85, 0.25, 0.18, 0.45)
+        TB.SetColorTexture(hl, 0.85, 0.25, 0.18, 0.45)
         hl:ClearAllPoints()
         hl:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
         hl:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
@@ -476,11 +483,11 @@ function TB.StyleCheckButton(check)
         if tex then tex:SetTexture(nil) end
     end
     local edge = check:CreateTexture(nil, "BACKGROUND")
-    edge:SetTexture(0.30, 0.30, 0.32, 1)
+    TB.SetColorTexture(edge, 0.30, 0.30, 0.32, 1)
     edge:SetWidth(14); edge:SetHeight(14)
     edge:SetPoint("CENTER", check, "CENTER", 0, 0)
     local well = check:CreateTexture(nil, "BORDER")
-    well:SetTexture(0.04, 0.042, 0.05, 1)
+    TB.SetColorTexture(well, 0.04, 0.042, 0.05, 1)
     well:SetWidth(12); well:SetHeight(12)
     well:SetPoint("CENTER", check, "CENTER", 0, 0)
     check.box, check.well = edge, well
@@ -494,7 +501,7 @@ function TB.StyleCheckButton(check)
     end
     local hl = check.GetHighlightTexture and check:GetHighlightTexture()
     if hl then
-        hl:SetTexture(C.COLOR.accent[1], C.COLOR.accent[2], C.COLOR.accent[3], 0.35)
+        TB.SetColorTexture(hl, C.COLOR.accent[1], C.COLOR.accent[2], C.COLOR.accent[3], 0.35)
         hl:ClearAllPoints()
         hl:SetWidth(12); hl:SetHeight(12)
         hl:SetPoint("CENTER", check, "CENTER", 0, 0)

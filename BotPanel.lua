@@ -1144,7 +1144,7 @@ local function createItemButton(parent)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b.border = b:CreateTexture(nil, "BACKGROUND")
     b.border:SetAllPoints(b)
-    b.border:SetTexture(0.25, 0.25, 0.25, 0.9)
+    TB.SetColorTexture(b.border, 0.25, 0.25, 0.25, 0.9)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
     b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
@@ -1156,7 +1156,7 @@ local function createItemButton(parent)
     b.badge:SetText("|cff40ff40+|r")
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(b)
-    hl:SetTexture(1, 1, 1, 0.15)
+    TB.SetColorTexture(hl, 1, 1, 1, 0.15)
     b:SetScript("OnEnter", function(self, motion)
         local entry = self.entry
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1208,7 +1208,7 @@ local function paintItemButton(b, entry, emptyTexture)
             and (entry.durability or 0) / entry.maxDurability < 0.25 then
             r, g, bl = 1, 0.15, 0.1 -- nearly broken: red frame
         end
-        b.border:SetTexture(r, g, bl, 0.95)
+        TB.SetColorTexture(b.border, r, g, bl, 0.95)
         b.count:SetText((entry.count and entry.count > 1) and tostring(entry.count) or "")
         if entry.upgrade then b.badge:Show() else b.badge:Hide() end
         if b.icon.SetVertexColor then
@@ -1222,7 +1222,7 @@ local function paintItemButton(b, entry, emptyTexture)
         b.icon:SetTexture(emptyTexture or nil)
         b.icon:SetTexCoord(0, 1, 0, 1)
         if b.icon.SetVertexColor then b.icon:SetVertexColor(1, 1, 1) end
-        b.border:SetTexture(0.12, 0.12, 0.12, 0.9)
+        TB.SetColorTexture(b.border, 0.12, 0.12, 0.12, 0.9)
         b.count:SetText("")
         b.badge:Hide()
     end
@@ -1240,7 +1240,7 @@ local function createEquippedBagButton(parent, slotId, index)
     b.border = b:CreateTexture(nil, "BACKGROUND")
     b.border:SetWidth(24); b.border:SetHeight(24)
     b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
-    b.border:SetTexture(0.18, 0.18, 0.18, 0.9)
+    TB.SetColorTexture(b.border, 0.18, 0.18, 0.18, 0.9)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetWidth(20); b.icon:SetHeight(20)
     b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 4, -4)
@@ -1253,7 +1253,7 @@ local function createEquippedBagButton(parent, slotId, index)
     TB.SetTextColor(b.slotsText, color("muted"))
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(b)
-    hl:SetTexture(1, 1, 1, 0.12)
+    TB.SetColorTexture(hl, 1, 1, 1, 0.12)
     b:SetScript("OnEnter", function(self, motion)
         local entry = self.entry
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -2034,7 +2034,7 @@ local function renderBags(inv)
             b.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
             b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             local r, g, bl = qualityColor(quality)
-            b.border:SetTexture(r, g, bl, 0.95)
+            TB.SetColorTexture(b.border, r, g, bl, 0.95)
             b.nameText:SetText(name or ("item #" .. item.id))
             local sc = bagSlotCount(item.id, item.slots)
             b.slotsText:SetText(sc and (sc .. " slots") or "Equipped")
@@ -2042,7 +2042,7 @@ local function renderBags(inv)
             b.entry = nil
             b.icon:SetTexture("Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag")
             b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            b.border:SetTexture(0.18, 0.18, 0.18, 0.9)
+            TB.SetColorTexture(b.border, 0.18, 0.18, 0.18, 0.9)
             b.nameText:SetText("Bag " .. i)
             b.slotsText:SetText(inv and "Empty / not reported" or "Loading…")
         end
@@ -2116,9 +2116,9 @@ local function renderBehavior()
             chip.state = value
             local stateText = value == "on" and "On" or (value == "off" and "Off" or "?")
             chip:SetText(chip.def.label .. ": " .. stateText)
-            if value == "on" then chip.lamp:SetTexture(0.30, 0.90, 0.45, 1)
-            elseif value == "off" then chip.lamp:SetTexture(0.45, 0.45, 0.45, 1)
-            else chip.lamp:SetTexture(0.95, 0.72, 0.28, 1) end
+            if value == "on" then TB.SetColorTexture(chip.lamp, 0.30, 0.90, 0.45, 1)
+            elseif value == "off" then TB.SetColorTexture(chip.lamp, 0.45, 0.45, 0.45, 1)
+            else TB.SetColorTexture(chip.lamp, 0.95, 0.72, 0.28, 1) end
             if st and not pending then chip:Enable() else chip:Disable() end
         end
     end

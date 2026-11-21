@@ -159,7 +159,7 @@ local function createWindow()
     slider:SetValueStep(0.01)
     slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
     local track = slider:CreateTexture(nil, "BACKGROUND")
-    track:SetTexture(0.24, 0.24, 0.28, 1)
+    TB.SetColorTexture(track, 0.24, 0.24, 0.28, 1)
     track:SetPoint("LEFT", slider, "LEFT", 0, 0)
     track:SetPoint("RIGHT", slider, "RIGHT", 0, 0)
     track:SetHeight(6)
@@ -172,12 +172,28 @@ local function createWindow()
     maxLabel:SetText("110%")
     TB.SetTextColor(maxLabel, color("muted"))
     slider:SetValue(TB.GetWindowScale())
-    -- Back at the automatic value the drag ends in Auto, not in a manual
-    -- override of the same size.
-    slider:SetScript("OnValueChanged", function(self, value)
+    if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
+    -- This window sits inside the main one, so scaling during a drag moves the
+    -- slider under the cursor and the value runs away. While dragging only the
+    -- label previews the size; the scale is applied on release.
+    local function apply(self)
         local v = self:GetValue()
+        -- Back at the automatic value the drag ends in Auto, not in a manual
+        -- override of the same size.
         if math.abs(v - TB.GetWindowScale()) < 0.0005 then return end
         TB.SetWindowScale(v)
+    end
+    slider:SetScript("OnMouseDown", function(self) self.dragging = true end)
+    slider:SetScript("OnMouseUp", function(self)
+        self.dragging = false
+        apply(self)
+    end)
+    slider:SetScript("OnValueChanged", function(self, value)
+        if self.dragging then
+            win.scaleValue:SetText(math.floor(self:GetValue() * 100 + 0.5) .. "%")
+            return
+        end
+        apply(self)
     end)
     win.slider = slider
 

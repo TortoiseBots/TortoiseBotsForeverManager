@@ -105,6 +105,47 @@ function TB.BagReady()
     return bagSlotsApi() ~= nil and bagLinkApi() ~= nil and bagInfoApi() ~= nil
 end
 
+-- Group changes: the modern client fires only GROUP_ROSTER_UPDATE and refuses to
+-- register the 1.12 PARTY_MEMBERS_CHANGED / RAID_ROSTER_UPDATE (an error that
+-- stops the rest of the file). Register whichever names the client knows.
+TB.GROUP_EVENTS = { GROUP_ROSTER_UPDATE = true, PARTY_MEMBERS_CHANGED = true, RAID_ROSTER_UPDATE = true }
+function TB.RegisterGroupEvents(frame)
+    for event in pairs(TB.GROUP_EVENTS) do
+        pcall(frame.RegisterEvent, frame, event)
+    end
+end
+
+-- Backdrops: the modern client gives SetBackdrop only to frames made with
+-- "BackdropTemplate"; a template button (UIPanelButtonTemplate) has none.
+-- Mix it in where it is missing, as the template itself does.
+function TB.EnsureBackdrop(frame)
+    if frame and not frame.SetBackdrop and _G.BackdropTemplateMixin and _G.Mixin then
+        _G.Mixin(frame, _G.BackdropTemplateMixin)
+        if frame.HookScript and frame.OnBackdropSizeChanged then
+            frame:HookScript("OnSizeChanged", frame.OnBackdropSizeChanged)
+        end
+    end
+    return frame
+end
+
+-- Secret values: the modern client may hand an addon a unit's health or power
+-- as a "secret" number. A status bar takes it, but comparing or dividing it
+-- raises an error, so only a plain number is returned here (else nil).
+function TB.PlainNumber(value)
+    if _G.issecretvalue and _G.issecretvalue(value) then return nil end
+    return value
+end
+
+-- Colour textures: 1.12 painted a solid colour with SetTexture(r, g, b, a);
+-- the modern client reads that as a file id and draws nothing.
+function TB.SetColorTexture(texture, r, g, b, a)
+    if texture.SetColorTexture then
+        texture:SetColorTexture(r, g, b, a)
+    else
+        texture:SetTexture(r, g, b, a)
+    end
+end
+
 -- ── bag slots (C_Container) ─────────────────────────────────────────────────
 function TB.BagSlots(bag)
     if CC and CC.GetContainerNumSlots then return CC.GetContainerNumSlots(bag) end

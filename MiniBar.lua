@@ -207,9 +207,9 @@ local function paintLamp(lamp, def)
     if not lamp then return end
     if not def.toggle then lamp:Hide(); return end
     local state = TB.GetPartyToggleState and TB.GetPartyToggleState(def.toggle)
-    if state == "on" then lamp:SetTexture(0.30, 0.90, 0.45, 1)
-    elseif state == "off" then lamp:SetTexture(0.45, 0.45, 0.45, 1)
-    else lamp:SetTexture(0.95, 0.72, 0.28, 1) end
+    if state == "on" then TB.SetColorTexture(lamp, 0.30, 0.90, 0.45, 1)
+    elseif state == "off" then TB.SetColorTexture(lamp, 0.45, 0.45, 0.45, 1)
+    else TB.SetColorTexture(lamp, 0.95, 0.72, 0.28, 1) end
     lamp:Show()
 end
 
@@ -218,10 +218,10 @@ end
 local function paintFeedback(b, def)
     if not b or not b.frame then return end
     local state = def and TB.ActionFeedbackState and TB.ActionFeedbackState(def.intent) or nil
-    if state == "waiting" then b.frame:SetTexture(0.72, 0.54, 0.20, 1)
-    elseif state == "ok" then b.frame:SetTexture(0.30, 0.90, 0.45, 1)
-    elseif state == "error" then b.frame:SetTexture(1.00, 0.34, 0.28, 1)
-    else b.frame:SetTexture(0, 0, 0, 0.9) end
+    if state == "waiting" then TB.SetColorTexture(b.frame, 0.72, 0.54, 0.20, 1)
+    elseif state == "ok" then TB.SetColorTexture(b.frame, 0.30, 0.90, 0.45, 1)
+    elseif state == "error" then TB.SetColorTexture(b.frame, 1.00, 0.34, 0.28, 1)
+    else TB.SetColorTexture(b.frame, 0, 0, 0, 0.9) end
 end
 
 -- An unusable action greys out but stays clickable: a right-click still
@@ -284,7 +284,7 @@ local function iconButton(parent, size)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     local frame = b:CreateTexture(nil, "BACKGROUND")
     frame:SetAllPoints(b)
-    frame:SetTexture(0, 0, 0, 0.9)
+    TB.SetColorTexture(frame, 0, 0, 0, 0.9)
     b.frame = frame
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
@@ -292,7 +292,7 @@ local function iconButton(parent, size)
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
     hl:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
-    hl:SetTexture(1, 1, 1, 0.16)
+    TB.SetColorTexture(hl, 1, 1, 1, 0.16)
     b.lamp = b:CreateTexture(nil, "OVERLAY")
     b.lamp:SetWidth(8); b.lamp:SetHeight(8)
     b.lamp:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
@@ -335,7 +335,7 @@ local function createFlyout()
         local slot = e:CreateTexture(nil, "BACKGROUND")
         slot:SetWidth(22); slot:SetHeight(22)
         slot:SetPoint("LEFT", e, "LEFT", 0, 0)
-        slot:SetTexture(0, 0, 0, 0.9)
+        TB.SetColorTexture(slot, 0, 0, 0, 0.9)
         e.frame = slot
         e.icon = e:CreateTexture(nil, "ARTWORK")
         e.icon:SetWidth(20); e.icon:SetHeight(20)
@@ -349,7 +349,7 @@ local function createFlyout()
         e.label:SetWidth(FLY_W - 32); e.label:SetJustifyH("LEFT")
         local hl = e:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints(e)
-        hl:SetTexture(1, 1, 1, 0.06)
+        TB.SetColorTexture(hl, 1, 1, 1, 0.06)
         e:SetScript("OnClick", function(self, button)
             local def = self.def
             if not def then return end
@@ -528,7 +528,7 @@ local function createBar()
     if TB.ApplySurface then TB.ApplySurface(bar, "window") else TB.ApplyBackdrop(bar, 0.9, 0.9) end
     -- The same thin gold rule as the windows, so the bar reads as one of them.
     local rule = bar:CreateTexture(nil, "BORDER")
-    rule:SetTexture(COL.accent[1], COL.accent[2], COL.accent[3], 0.85)
+    TB.SetColorTexture(rule, COL.accent[1], COL.accent[2], COL.accent[3], 0.85)
     rule:SetPoint("TOPLEFT", bar, "TOPLEFT", 1, -1)
     rule:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -1, -1)
     rule:SetHeight(1)
@@ -607,7 +607,7 @@ local function createBar()
 
     bar.divider = bar:CreateTexture(nil, "ARTWORK")
     bar.divider:SetWidth(1); bar.divider:SetHeight(ICON - 4)
-    bar.divider:SetTexture(1, 1, 1, 0.12)
+    TB.SetColorTexture(bar.divider, 1, 1, 1, 0.12)
 
     bar.favButtons = {}
     for i = 1, MAX_FAVORITES do
@@ -642,7 +642,7 @@ local function createBar()
         local line = expand:CreateTexture(nil, "OVERLAY")
         line:SetWidth(size[1]); line:SetHeight(size[2])
         line:SetPoint("CENTER", expand, "CENTER", 0, 0)
-        line:SetTexture(0.95, 0.72, 0.28, 1)
+        TB.SetColorTexture(line, 0.95, 0.72, 0.28, 1)
     end
     expand:SetScript("OnClick", function(self, button) TB.SetMode("full") end)
     expand:SetScript("OnEnter", function(self, motion)
@@ -687,9 +687,9 @@ function TB.RefreshMiniBar()
     end
     for key, b in pairs(bar.categories) do
         if openCategory and openCategory.key == key then
-            b.arrow:SetTexture(COL.accentHi[1], COL.accentHi[2], COL.accentHi[3], 1)
+            TB.SetColorTexture(b.arrow, COL.accentHi[1], COL.accentHi[2], COL.accentHi[3], 1)
         else
-            b.arrow:SetTexture(1, 1, 1, 0.18)
+            TB.SetColorTexture(b.arrow, 1, 1, 1, 0.18)
         end
     end
     renderFlyout()

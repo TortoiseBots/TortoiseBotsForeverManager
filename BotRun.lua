@@ -875,7 +875,7 @@ local function createWindow()
     -- plain dark backing replaces the tooltip backdrop here.
     local barBg = win.runBar:CreateTexture(nil, "BACKGROUND")
     barBg:SetAllPoints(win.runBar)
-    barBg:SetTexture(0.14, 0.14, 0.17, 1)
+    TB.SetColorTexture(barBg, 0.14, 0.14, 0.17, 1)
     win.runFill = win.runBar:CreateTexture(nil, "ARTWORK")
     win.runFill:SetHeight(6)
     win.runLeg = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1192,7 +1192,7 @@ function TB.RefreshRunWindow()
     local st = run or { state = "none", plan = "-", step = 0, steps = 0,
         leg = "-", kind = "-", phase = "-", note = "no run" }
     local r, g, b = lampColor(st.state)
-    win.runLamp:SetTexture(r, g, b, 1)
+    TB.SetColorTexture(win.runLamp, r, g, b, 1)
     local stateWord = st.state == "none" and "No run"
         or string.gsub(st.state or "none", "^%l", string.upper)
     win.runState:SetText((st.plan or "-") .. " · " .. stateWord)
@@ -1203,7 +1203,7 @@ function TB.RefreshRunWindow()
         if frac > 1 then frac = 1 end
         win.runFill:SetWidth(math.floor((RW - 28) * frac + 0.5))
         win.runFill:SetPoint("LEFT", win.runBar, "LEFT", 2, 0)
-        win.runFill:SetTexture(r, g, b, 1)
+        TB.SetColorTexture(win.runFill, r, g, b, 1)
         win.runFill:Show()
     else
         win.runStep:SetText("-")
