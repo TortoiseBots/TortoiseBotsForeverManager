@@ -22,7 +22,7 @@ TB.C.MIN_MODULE_PROTOCOL = 0
 
 -- Panel geometry — compact Vanilla-safe control plane.
 TB.C.PANEL_W = 500
-TB.C.PANEL_H = 460
+TB.C.PANEL_H = 476
 TB.C.ROW_H   = 28
 TB.C.ROW_N   = 8
 TB.C.PAD     = 10  -- outer margin
@@ -701,7 +701,6 @@ TB.C.POLL_WAIT       = 1.2   -- seconds before reconciling a list snapshot
 TB.C.POLL_NO_REPLY_LIMIT = 2 -- consecutive silent polls before Unknown
 
 -- Minimap
-TB.C.MINIMAP_RADIUS = 80
 TB.C.MINIMAP_DEFAULT = { x = 52, y = 52 }
 
 -- Colors (r,g,b) — Tortoise palette

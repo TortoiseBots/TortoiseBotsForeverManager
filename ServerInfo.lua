@@ -189,13 +189,13 @@ local function renderMain()
             elseif f.value == "off" then word = "Off" end
             row.value:SetText(word)
             if f.value == "on" then
-                row.lamp:SetTexture(0.30, 0.90, 0.45, 1)
+                TB.SetColorTexture(row.lamp, 0.30, 0.90, 0.45, 1)
                 TB.SetTextColor(row.value, color("green"))
             elseif f.value == "off" then
-                row.lamp:SetTexture(0.45, 0.45, 0.45, 1)
+                TB.SetColorTexture(row.lamp, 0.45, 0.45, 0.45, 1)
                 TB.SetTextColor(row.value, color("muted"))
             else
-                row.lamp:SetTexture(0.95, 0.72, 0.28, 1)
+                TB.SetColorTexture(row.lamp, 0.95, 0.72, 0.28, 1)
                 TB.SetTextColor(row.value, color("title"))
             end
             row.lamp:Show(); row.label:Show(); row.value:Show()

@@ -253,9 +253,9 @@ function TB.RefreshBots()
                     chip.bot = name
                     chip:SetText(def.label)
                     chip.state = value
-                    if value == "on" then chip.lamp:SetTexture(0.30, 0.90, 0.45, 1)
-                    elseif value == "off" then chip.lamp:SetTexture(0.45, 0.45, 0.45, 1)
-                    else chip.lamp:SetTexture(0.95, 0.72, 0.28, 1) end
+                    if value == "on" then TB.SetColorTexture(chip.lamp, 0.30, 0.90, 0.45, 1)
+                    elseif value == "off" then TB.SetColorTexture(chip.lamp, 0.45, 0.45, 0.45, 1)
+                    else TB.SetColorTexture(chip.lamp, 0.95, 0.72, 0.28, 1) end
                     if st then chip:Enable() else chip:Disable() end
                     chip:Show()
                 else
@@ -347,8 +347,7 @@ end
 -- window closes when the last party bot leaves.
 local dueAt
 local watcher = CreateFrame("Frame", "TortoiseBotsManagerBotsWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
-watcher:RegisterEvent("PARTY_MEMBERS_CHANGED")
-watcher:RegisterEvent("RAID_ROSTER_UPDATE")
+TB.RegisterGroupEvents(watcher)
 watcher:SetScript("OnEvent", function(self, event, ...)
     if win and win:IsVisible() then dueAt = now() + 1 end
     if TB.UpdateBotsButton then TB.UpdateBotsButton() end

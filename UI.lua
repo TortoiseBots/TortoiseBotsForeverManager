@@ -335,7 +335,7 @@ function TB.UI.CreateCard(parent, titleText, width, height, opts)
 
     if opts.line then
         local line = card:CreateTexture(nil, "ARTWORK")
-        line:SetTexture(1, 1, 1, 0.06)
+        TB.SetColorTexture(line, 1, 1, 1, 0.06)
         line:SetPoint("TOPLEFT", card, "TOPLEFT", 6, -19)
         line:SetPoint("TOPRIGHT", card, "TOPRIGHT", -6, -19)
         line:SetHeight(1)
@@ -526,7 +526,7 @@ end
 function TB.UI.StripeRow(row, index)
     local bg = row:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(row)
-    bg:SetTexture(1, 1, 1, math.fmod(index, 2) == 1 and 0.035 or 0.012)
+    TB.SetColorTexture(bg, 1, 1, 1, math.fmod(index, 2) == 1 and 0.035 or 0.012)
     row.stripe = bg
     return bg
 end
@@ -572,7 +572,7 @@ function TB.UI.CreateIconButton(parent, size, opts)
     if opts.highlight ~= false then
         local hl = btn:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints(btn)
-        hl:SetTexture(1, 1, 1, 0.2)
+        TB.SetColorTexture(hl, 1, 1, 1, 0.2)
         btn.highlight = hl
     end
 
@@ -645,17 +645,18 @@ CreateHeader = function(parent)
     end)
     TB.dragHeader = dragBar
     TB.ApplySurface(parent, "window")
-    TB.AddWindowHeader(parent, 34)
+    -- Two header rows: title and buttons, then the full-width status line.
+    TB.AddWindowHeader(parent, 50)
     if UISpecialFrames then table.insert(UISpecialFrames, "TortoiseBotsManagerFrame") end
 
     local icon = parent:CreateTexture(nil, "ARTWORK")
-    icon:SetWidth(24); icon:SetHeight(24)
-    icon:SetPoint("TOPLEFT", parent, "TOPLEFT", C.PAD or 10, -6)
+    icon:SetWidth(36); icon:SetHeight(36)
+    icon:SetPoint("TOPLEFT", parent, "TOPLEFT", C.PAD or 10, -7)
     icon:SetTexture("Interface\\Icons\\Ability_Hunter_Pet_Turtle")
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
     local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, 0)
+    title:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -1)
     TB.StyleTitle(title, 14)
     TB.versionTitle = title
     if TB.RefreshVersionLine then TB.RefreshVersionLine() else
@@ -664,20 +665,22 @@ CreateHeader = function(parent)
     end
 
     local versionLine = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    versionLine:SetPoint("TOPLEFT", parent, "TOPLEFT", (C.PAD or 10) + 32, -21)
-    versionLine:SetWidth(350)
+    versionLine:SetPoint("TOPLEFT", parent, "TOPLEFT", (C.PAD or 10) + 44, -31)
+    -- The second header row, under the buttons: one line across the window.
+    versionLine:SetWidth(W - (C.PAD or 10) * 2 - 44)
     versionLine:SetJustifyH("LEFT")
+    if versionLine.SetWordWrap then versionLine:SetWordWrap(false) end
     TB.SetTextColor(versionLine, color("faint"))
     TB.versionLine = versionLine
     if TB.RefreshVersionLine then TB.RefreshVersionLine() end
 
     -- A warm glow behind the title, fading down the header band.
     local glow = parent:CreateTexture(nil, "BORDER")
-    if not TB.SetMediaTexture(glow, "gradient") then glow:SetTexture(1, 1, 1, 0) end
+    if not TB.SetMediaTexture(glow, "gradient") then TB.SetColorTexture(glow, 1, 1, 1, 0) end
     glow:SetVertexColor(0.78, 0.53, 0.14, 0.10)
     glow:SetPoint("TOPLEFT", parent, "TOPLEFT", 1, -2)
     glow:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -1, -2)
-    glow:SetHeight(33)
+    glow:SetHeight(49)
 
     local close = CreateFrame("Button", nil, parent, "UIPanelCloseButton")
     TB.StyleCloseButton(close, -8, -8)
@@ -698,15 +701,28 @@ CreateHeader = function(parent)
     setButtonTooltip(info, "What this server has switched on: dungeon runs, hiring, world buffs and more.", "Server info")
     info:SetScript("OnClick", function(self, button) if TB.ToggleServerInfo then TB.ToggleServerInfo() end end)
     TB.infoButton = info
+    -- Settings: window size, minimap button, mini bar (Settings.lua).
+    local gear = TB.StyleButton(CreateFrame("Button", nil, parent, "UIPanelButtonTemplate"), "mode")
+    gear:SetWidth(20); gear:SetHeight(18)
+    gear:SetPoint("RIGHT", info, "LEFT", -4, 0)
+    local gearIcon = gear:CreateTexture(nil, "ARTWORK")
+    gearIcon:SetTexture("Interface\\Icons\\INV_Misc_Gear_01")
+    gearIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    gearIcon:SetWidth(14); gearIcon:SetHeight(14)
+    gearIcon:SetPoint("CENTER", gear, "CENTER", 0, 0)
+    setButtonTooltip(gear, "Window size, minimap button and mini bar options. Also /tbfm settings.", "Settings")
+    gear:SetScript("OnClick", function(self, button) if TB.ToggleSettings then TB.ToggleSettings() end end)
+    TB.settingsButton = gear
     -- Issue #33: the mouse-enabled drag bar spans the header corner over these
     -- buttons and eats their clicks in the 1.12 client. End the bar left of
     -- Mini and raise both buttons above it; the rest of the header still drags.
     dragBar:ClearAllPoints()
     dragBar:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-    dragBar:SetPoint("BOTTOMRIGHT", info, "BOTTOMLEFT", -6, 0)
+    dragBar:SetPoint("BOTTOMRIGHT", gear, "BOTTOMLEFT", -6, 0)
     close:SetFrameLevel(dragBar:GetFrameLevel() + 2)
     mini:SetFrameLevel(dragBar:GetFrameLevel() + 2)
     info:SetFrameLevel(dragBar:GetFrameLevel() + 2)
+    gear:SetFrameLevel(dragBar:GetFrameLevel() + 2)
 
 end
 -- Class filter: two compact rows of 5 small chips on their own row under the
@@ -907,7 +923,7 @@ CreateRow = function(parent, scroll, index)
     row.accent:SetWidth(2)
     row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
     row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
-    row.accent:SetTexture(COL.accent[1], COL.accent[2], COL.accent[3], 0.95)
+    TB.SetColorTexture(row.accent, COL.accent[1], COL.accent[2], COL.accent[3], 0.95)
 
     row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
     row.check:SetWidth(20); row.check:SetHeight(20)
@@ -948,7 +964,7 @@ CreateRow = function(parent, scroll, index)
 
     local hl = row:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(row)
-    hl:SetTexture(1, 1, 1, 0.04)
+    TB.SetColorTexture(hl, 1, 1, 1, 0.04)
 
     row:SetScript("OnEnter", function(self, motion)
         local entry = self.entry
@@ -1124,7 +1140,7 @@ local function BuildScopeCard(parent)
     -- Who gets the orders: a gold edge on the left, the scope in bright text
     -- and a muted line on how to change it.
     local edge = scopeCard:CreateTexture(nil, "ARTWORK")
-    edge:SetTexture(COL.accent[1], COL.accent[2], COL.accent[3], 0.9)
+    TB.SetColorTexture(edge, COL.accent[1], COL.accent[2], COL.accent[3], 0.9)
     edge:SetPoint("TOPLEFT", scopeCard, "TOPLEFT", 1, -1)
     edge:SetPoint("BOTTOMLEFT", scopeCard, "BOTTOMLEFT", 1, 1)
     edge:SetWidth(2)
@@ -1660,13 +1676,13 @@ end
 CreateStatusBar = function(parent)
     -- Footer: a darker strip under a hairline, the last reply on the left.
     local strip = parent:CreateTexture(nil, "BACKGROUND")
-    strip:SetTexture(0, 0, 0, 0.28)
+    TB.SetColorTexture(strip, 0, 0, 0, 0.28)
     strip:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 1, 1)
     strip:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -1, 1)
     strip:SetHeight(23)
     local line = parent:CreateTexture(nil, "BORDER")
     local hl = TB.Theme("hairline")
-    line:SetTexture(hl[1], hl[2], hl[3], hl[4])
+    TB.SetColorTexture(line, hl[1], hl[2], hl[3], hl[4])
     line:SetPoint("BOTTOMLEFT", strip, "TOPLEFT", 0, 0)
     line:SetPoint("BOTTOMRIGHT", strip, "TOPRIGHT", 0, 0)
     line:SetHeight(1)
@@ -1709,11 +1725,11 @@ function TB.InitUI()
     -- bright with a gold underline, the others muted. One hairline under
     -- the whole bar separates navigation from content.
     local tabBar = CreateFrame("Frame", nil, main, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    tabBar:SetPoint("TOPLEFT", main, "TOPLEFT", C.PAD or 10, -38)
+    tabBar:SetPoint("TOPLEFT", main, "TOPLEFT", C.PAD or 10, -54)
     tabBar:SetWidth(W - (C.PAD or 10) * 2)
     tabBar:SetHeight(24)
     local tabLine = tabBar:CreateTexture(nil, "BACKGROUND")
-    tabLine:SetTexture(1, 1, 1, 0.08)
+    TB.SetColorTexture(tabLine, 1, 1, 1, 0.08)
     tabLine:SetPoint("BOTTOMLEFT", tabBar, "BOTTOMLEFT", 0, 0)
     tabLine:SetPoint("BOTTOMRIGHT", tabBar, "BOTTOMRIGHT", 0, 0)
     tabLine:SetHeight(1)
@@ -1724,7 +1740,7 @@ function TB.InitUI()
         button:SetPoint("LEFT", tabBar, "LEFT", offset, 0)
         button:EnableMouse(true); button:RegisterForClicks("LeftButtonUp")
         local fill = button:CreateTexture(nil, "BACKGROUND")
-        if not TB.SetMediaTexture(fill, "gradient") then fill:SetTexture(1, 1, 1, 1) end
+        if not TB.SetMediaTexture(fill, "gradient") then TB.SetColorTexture(fill, 1, 1, 1, 1) end
         fill:SetPoint("TOPLEFT", button, "TOPLEFT", 1, 0)
         fill:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 0)
         fill:SetVertexColor(COL.accent[1], COL.accent[2], COL.accent[3], 0.0)
@@ -1735,7 +1751,7 @@ function TB.InitUI()
         text:SetText(label)
         button.text = text
         local underline = button:CreateTexture(nil, "ARTWORK")
-        underline:SetTexture(COL.accentHi[1], COL.accentHi[2], COL.accentHi[3], 1)
+        TB.SetColorTexture(underline, COL.accentHi[1], COL.accentHi[2], COL.accentHi[3], 1)
         underline:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 6, 0)
         underline:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -6, 0)
         underline:SetHeight(2)
@@ -1744,7 +1760,7 @@ function TB.InitUI()
         local highlight = button:CreateTexture(nil, "HIGHLIGHT")
         highlight:SetPoint("TOPLEFT", button, "TOPLEFT", 1, 0)
         highlight:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
-        highlight:SetTexture(1, 1, 1, 0.05)
+        TB.SetColorTexture(highlight, 1, 1, 1, 0.05)
         return button
     end
 
@@ -1828,7 +1844,7 @@ function TB.InitUI()
             row.accent:SetWidth(2)
             row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
             row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
-            row.accent:SetTexture(COL.accent[1], COL.accent[2], COL.accent[3], 0.95)
+            TB.SetColorTexture(row.accent, COL.accent[1], COL.accent[2], COL.accent[3], 0.95)
 
             local classIcon = row:CreateTexture(nil, "ARTWORK")
             classIcon:SetWidth(30); classIcon:SetHeight(30)
@@ -2328,7 +2344,7 @@ end
             row.accent:SetWidth(2)
             row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
             row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
-            row.accent:SetTexture(COL.accent[1], COL.accent[2], COL.accent[3], 0.95)
+            TB.SetColorTexture(row.accent, COL.accent[1], COL.accent[2], COL.accent[3], 0.95)
 
             row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
             row.check:SetWidth(20); row.check:SetHeight(20)
@@ -2469,7 +2485,7 @@ end
 
             local hl = row:CreateTexture(nil, "HIGHLIGHT")
             hl:SetAllPoints(row)
-            hl:SetTexture(1, 1, 1, 0.04)
+            TB.SetColorTexture(hl, 1, 1, 1, 0.04)
 
             row:SetScript("OnEnter", function(self, motion) TB.ShowGuildRowTooltip(self) end)
             row:SetScript("OnLeave", function(self)
@@ -2762,19 +2778,20 @@ end
                 local hp = (UnitHealth and UnitHealth(unit)) or 0
                 local hpMax = (UnitHealthMax and UnitHealthMax(unit)) or 0
                 local mp, mpMax = (TB.UnitMana and TB.UnitMana(unit)) or 0, (TB.UnitManaMax and TB.UnitManaMax(unit)) or 0
+                local plainHp, plainHpMax = TB.PlainNumber(hp), TB.PlainNumber(hpMax)
                 if row.hpBar then
-                    if hpMax > 0 then row.hpBar:SetMinMaxValues(0, hpMax) end
+                    row.hpBar:SetMinMaxValues(0, hpMax)
                     row.hpBar:SetValue(hp)
-                    if dead or ghost or hp <= 0 then
+                    if dead or ghost or (plainHp and plainHp <= 0) then
                         row.hpBar:SetStatusBarColor(COL.muted[1], COL.muted[2], COL.muted[3])
-                    elseif hpMax > 0 and hp / hpMax < 0.35 then
+                    elseif plainHp and plainHpMax and plainHpMax > 0 and plainHp / plainHpMax < 0.35 then
                         row.hpBar:SetStatusBarColor(COL.red[1], COL.red[2], COL.red[3])
                     else
                         row.hpBar:SetStatusBarColor(COL.green[1], COL.green[2], COL.green[3])
                     end
                 end
                 if row.manaBar then
-                    if mpMax > 0 then
+                    if (TB.PlainNumber(mpMax) or 1) > 0 then
                         row.manaBar:SetMinMaxValues(0, mpMax)
                         row.manaBar:SetValue(mp)
                         row.manaBar:Show()
@@ -2795,7 +2812,7 @@ end
                 else
                     row.summonButton:Hide()
                 end
-                row.accent:SetTexture(col[1], col[2], col[3], 0.95)
+                TB.SetColorTexture(row.accent, col[1], col[2], col[3], 0.95)
                 local targeted = false
                 if UnitExists and UnitExists("target") and UnitName then
                     local targetName = UnitName("target")
@@ -2989,7 +3006,7 @@ end
                 local classColor = (TB.GetClassColor and TB.GetClassColor(entry.classId)) or COL.gold
                 row.name:SetText(entry.name)
                 row.name:SetTextColor(classColor[1], classColor[2], classColor[3])
-                row.accent:SetTexture(classColor[1], classColor[2], classColor[3], entry.online and 0.95 or 0.45)
+                TB.SetColorTexture(row.accent, classColor[1], classColor[2], classColor[3], entry.online and 0.95 or 0.45)
                 if isSelected then
                     local sel, selEdge = TB.Theme("rowSel"), TB.Theme("rowSelEdge")
                     row:SetBackdropColor(sel[1], sel[2], sel[3], sel[4])
@@ -3245,14 +3262,15 @@ end
 
     local targetWatcher = CreateFrame("Frame", "TortoiseBotsManagerTargetWatcher", nil, BackdropTemplateMixin and "BackdropTemplate" or nil)
     targetWatcher:RegisterEvent("PLAYER_TARGET_CHANGED")
-    targetWatcher:RegisterEvent("PARTY_MEMBERS_CHANGED")
-    targetWatcher:RegisterEvent("RAID_ROSTER_UPDATE")
+    TB.RegisterGroupEvents(targetWatcher)
     targetWatcher:RegisterEvent("UNIT_HEALTH")
-    targetWatcher:RegisterEvent("UNIT_MANA")
+    -- UNIT_MANA is the 1.12 name; the modern client knows only UNIT_POWER_UPDATE.
+    pcall(targetWatcher.RegisterEvent, targetWatcher, "UNIT_MANA")
+    pcall(targetWatcher.RegisterEvent, targetWatcher, "UNIT_POWER_UPDATE")
     targetWatcher:RegisterEvent("UNIT_AURA")
     targetWatcher:SetScript("OnEvent", function(self, event, ...)
 local arg1 = ...
-        if event == "UNIT_HEALTH" or event == "UNIT_MANA" or event == "UNIT_AURA" then
+        if event == "UNIT_HEALTH" or event == "UNIT_MANA" or event == "UNIT_POWER_UPDATE" or event == "UNIT_AURA" then
             -- Party vitals and auras (dead, drinking) live on the Party tab.
             if arg1 and (string.find(arg1, "^party") or arg1 == "player")
                 and TB.partyFrame and TB.partyFrame:IsVisible() and TB.RefreshPartyView then
@@ -3264,7 +3282,7 @@ local arg1 = ...
             end
             return
         end
-        if (event == "RAID_ROSTER_UPDATE" or event == "PARTY_MEMBERS_CHANGED") and TB.UpdateRaidTab then
+        if TB.GROUP_EVENTS[event] and TB.UpdateRaidTab then
             TB.UpdateRaidTab()
         end
         -- The Marks panel assigns by explicit bot name, so targeting no
@@ -3365,15 +3383,15 @@ RefreshRows = function(rows)
                 local sel, selEdge = TB.Theme("rowSel"), TB.Theme("rowSelEdge")
                 row:SetBackdropColor(sel[1], sel[2], sel[3], sel[4])
                 row:SetBackdropBorderColor(selEdge[1], selEdge[2], selEdge[3], selEdge[4])
-                row.accent:SetTexture(COL.accentHi[1], COL.accentHi[2], COL.accentHi[3], 1)
+                TB.SetColorTexture(row.accent, COL.accentHi[1], COL.accentHi[2], COL.accentHi[3], 1)
             else
                 local rc, re = TB.Theme("row"), TB.Theme("rowEdge")
                 row:SetBackdropColor(rc[1], rc[2], rc[3], rc[4])
                 row:SetBackdropBorderColor(re[1], re[2], re[3], re[4])
                 if classCol and entry.st and entry.st.online then
-                    row.accent:SetTexture(classCol[1], classCol[2], classCol[3], 0.95)
+                    TB.SetColorTexture(row.accent, classCol[1], classCol[2], classCol[3], 0.95)
                 else
-                    row.accent:SetTexture(COL.accent[1], COL.accent[2], COL.accent[3], 0.60)
+                    TB.SetColorTexture(row.accent, COL.accent[1], COL.accent[2], COL.accent[3], 0.60)
                 end
             end
         else
@@ -3737,9 +3755,9 @@ function TB.RefreshRaidView()
     local state = TB.GetRaidCustomState()
     local word = state == "on" and "On" or (state == "off" and "Off" or (state == "mixed" and "Mixed" or "?"))
     frame.customToggle:SetText("Custom tactics: " .. word)
-    if state == "on" then frame.customToggle.lamp:SetTexture(0.30, 0.90, 0.45, 1)
-    elseif state == "off" then frame.customToggle.lamp:SetTexture(0.45, 0.45, 0.45, 1)
-    else frame.customToggle.lamp:SetTexture(0.95, 0.72, 0.28, 1) end
+    if state == "on" then TB.SetColorTexture(frame.customToggle.lamp, 0.30, 0.90, 0.45, 1)
+    elseif state == "off" then TB.SetColorTexture(frame.customToggle.lamp, 0.45, 0.45, 0.45, 1)
+    else TB.SetColorTexture(frame.customToggle.lamp, 0.95, 0.72, 0.28, 1) end
 
     local names = {}
     for name in pairs(raidStatus) do table.insert(names, name) end

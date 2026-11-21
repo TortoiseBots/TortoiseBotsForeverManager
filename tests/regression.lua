@@ -1343,8 +1343,10 @@ assert(TortoiseBotsDB.frame and TortoiseBotsDB.frame.point == "TOPLEFT",
 -- both header buttons must sit above it, or the bar eats Mini clicks in 1.12.
 assert(TB.dragHeader:GetNumPoints() == 2, "drag bar must keep two anchors after the Mini fix")
 local barRight, barAnchor = TB.dragHeader:GetPoint(2)
-assert(barRight == "BOTTOMRIGHT" and barAnchor == TB.infoButton,
-    "drag bar must end at the Info button instead of spanning the header corner")
+assert(barRight == "BOTTOMRIGHT" and barAnchor == TB.settingsButton,
+    "drag bar must end at the Settings button instead of spanning the header corner")
+assert(TB.settingsButton:GetFrameLevel() > TB.dragHeader:GetFrameLevel(),
+    "Settings must sit above the drag bar to receive clicks")
 assert(TB.infoButton:GetFrameLevel() > TB.dragHeader:GetFrameLevel(),
     "Info must sit above the drag bar to receive clicks")
 assert(TB.miniButton:GetFrameLevel() > TB.dragHeader:GetFrameLevel(),
