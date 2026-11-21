@@ -2309,8 +2309,9 @@ local function renderProfs()
             -- button hides instead; per the server verdict a
             -- refused recipe shows the button disabled with the plain
             -- reason in its tooltip.
+            local bridge = TB.Forever and not TB.Forever.Native()
             local canFeature = TB.HasOrderCapability and TB.HasOrderCapability()
-                and TB.CanGiveOrders and TB.CanGiveOrders()
+                and ((TB.CanGiveOrders and TB.CanGiveOrders()) or bridge)
             if recipe and canFeature and TB.ProfessionRecipeOrderable(recipe) then
                 row.craft:Show()
                 row.craft:Enable()

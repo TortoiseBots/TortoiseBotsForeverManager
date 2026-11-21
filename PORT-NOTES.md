@@ -22,7 +22,7 @@ Server: **TortoiseBotsForever**, which is still being ported.
 | Folder / `.toc` | `TortoiseBotsManager` | `TortoiseBotsForeverManager` |
 | Interface | `11200` | the WoW Forever client's (see the `.toc`) |
 | Window title | TortoiseBots Manager | TortoiseBots Forever Manager |
-| Version | `2.4.1` | `2.4.1-forever.1` (`TB.C.VERSION` stays `2.4.1` for the update check) |
+| Version | `2.4.1` | `2.4.1-forever.2` (`TB.C.VERSION` stays `2.4.1` for the update check) |
 | SavedVariables | `TortoiseBotsDB` | unchanged (each client has its own WTF folder, so no clash) |
 | Slash commands | `/tbm` | `/tbfm` (with `/tbfm trace`, `/tbfm fake` and `/tbfm status` for the trace and the offline demo) |
 
@@ -42,6 +42,8 @@ While the server has not sent `TBM:CAPS`:
 | Bot role tank / healer / DPS (a bot, or yourself) | `.tb role <bot> tank` / `healer` / `dps`, `.tb role <word>` for yourself |
 | Auto-gear, Equip upgrades (bot panel) | `.tb gear <bot> upgrade` |
 | Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |
+| Personal craft order (Professions view) | `.tb craftorder create <bot> <item> <amount>` / `cancel <bot>` / `status <bot>` |
+| Guild order (Farm, Buy, Craft, Cancel, List) | `.tb guildorder create <bot> <item> <amount> <farm\|buy\|craft>` / `cancel <bot>` / `list` (hours, keep, gold, bring dropped) |
 
 - `<scope>` is the targeted party bot, else `party <you>`.
 - The line goes as a **whisper to yourself**: the client blocks addons from sending to `/say`, and the server runs

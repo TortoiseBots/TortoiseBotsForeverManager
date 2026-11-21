@@ -203,9 +203,10 @@ function TB.BuildGuildRowMenu(name, addButton)
     local count = 0
     local F = TB.Forever
     local foreverWip = F and not F.Native() or false
+    local canCancelBridge = F and not F.Native() and F.Available("order " .. name .. " cancel")
     local orderCap = TB.HasOrderCapability and TB.HasOrderCapability() or false
     local order = orderCap and TB.GetBotOrder and TB.GetBotOrder(name) or nil
-    local mayOrder = (not foreverWip) and orderCap and TB.CanGiveOrders and TB.CanGiveOrders() or false
+    local mayOrder = ((not foreverWip) or canCancelBridge) and orderCap and TB.CanGiveOrders and TB.CanGiveOrders() or false
     if order and TB.ConfirmOrderCancel then
         addButton({ text = "Cancel order", notCheckable = 1, disabled = not mayOrder,
             func = function() TB.ConfirmOrderCancel(name) end })
@@ -3502,6 +3503,11 @@ function TB.RefreshForeverGating(restoreOnly)
     if TB.guildFrame then
         gateControl(F, TB.guildFrame.rankBtn, "", restoreOnly)
         gateControl(F, TB.guildFrame.orderBtn, "", restoreOnly)
+        gateControl(F, TB.guildFrame.activeBtn, "order list", restoreOnly)
+        for _, row in ipairs(TB.guildFrame.rows or {}) do
+            gateControl(F, row.ordBtn, "order " .. (row.claimedName or "Alpha") .. " craft 1 1", restoreOnly)
+            gateControl(F, row.meetBtn, "", restoreOnly)
+        end
     end
     if TB.ccMenu then
         gateControl(F, TB.ccMenu.clearAll, "", restoreOnly)
