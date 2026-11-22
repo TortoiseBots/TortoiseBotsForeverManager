@@ -34,6 +34,8 @@ function F.CommandTokens(cmd)
     if rest == "" then return "action" end
     local sub = string.match(rest, "^(%S+)")
     local noNum = string.gsub(rest, "%s+%d+$", "")
+    noNum = string.gsub(noNum, "%s+on$", "")
+    noNum = string.gsub(noNum, "%s+off$", "")
     return verb, "action:" .. rest, (noNum ~= rest) and ("action:" .. noNum) or nil,
         sub and ("action:" .. sub) or nil
 end

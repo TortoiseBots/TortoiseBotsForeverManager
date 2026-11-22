@@ -5,6 +5,7 @@ return function(ctx)
 
     dofile(root .. "/Forever.lua")
     dofile(root .. "/ForeverHybrid.lua")
+    dofile(root .. "/BridgeToggles.lua")
 
     local TB = TortoiseBots
     local F = TB.Forever
@@ -12,8 +13,10 @@ return function(ctx)
     local savedCapsKnown = TB.ServerCapabilitiesKnown
     local savedSetStatus = TB.SetStatus
     local savedLogMessage = TB.LogMessage
+    local savedTogglePending = TB.togglePending
     TB.SetStatus = function() end
     TB.LogMessage = function() end
+    TB.togglePending = {}
 
     local function resetState()
         TB.ClearServerVerbs()
@@ -79,6 +82,33 @@ return function(ctx)
         "totem party drop button un-greys when totem is in VERBS")
     assert(TB.toggleButtons.spread.enabled == true and not TB.toggleButtons.spread._foreverMarked,
         "behavior toggle un-greys when behavior is in VERBS")
+    for _, k in ipairs({ "aoe", "autocc", "sap", "loot" }) do
+        assert(TB.toggleButtons[k].enabled == false and TB.toggleButtons[k]._foreverMarked == true,
+            "action switch " .. k .. " stays grey for non-GM when only behavior is in VERBS")
+    end
+
+    -- With tb-gm, unlisted action switches fall back to bridge (.tb cmd);
+    -- once action:aoe/auto cc/sap/loot are in VERBS, they route native for non-GM too.
+    TB.OnSystemMessage("TBM:CAPS|totem,blessing,blessing-player,choice,behavior,service,inventory,professions,loot-log,tb-gm")
+    TB.RefreshActionControls()
+    for _, k in ipairs({ "aoe", "autocc", "sap", "loot" }) do
+        assert(TB.toggleButtons[k].enabled == true and not TB.toggleButtons[k]._foreverMarked,
+            "action switch " .. k .. " un-greys via bridge when tb-gm is present")
+    end
+    assert(F.Route("action aoe on") == "bridge" and F.Route("action auto cc on") == "bridge",
+        "action switches route to bridge with tb-gm when not in VERBS")
+
+    TB.OnSystemMessage("TBM:VERBS_BEGIN|16")
+    TB.OnSystemMessage("TBM:VERBS|roster,totem,blessing,choice,behavior,service,inv,inventory,item,trade,professions,lootlog,action:aoe,action:auto cc,action:sap,action:loot")
+    TB.OnSystemMessage("TBM:VERBS_END")
+    TB.OnSystemMessage("TBM:CAPS|totem,blessing,blessing-player,choice,behavior,service,inventory,professions,loot-log")
+    TB.RefreshActionControls()
+    for _, k in ipairs({ "aoe", "autocc", "sap", "loot" }) do
+        assert(TB.toggleButtons[k].enabled == true and not TB.toggleButtons[k]._foreverMarked,
+            "action switch " .. k .. " un-greys for non-GM once its action:* token is in VERBS")
+    end
+    assert(F.Route("action aoe on") == "native" and F.Route("action auto cc on") == "native",
+        "action switches route native once action:* tokens are in VERBS")
     assert(not TB.lootFrame._wipBanner:IsVisible(),
         "loot WIP banner hides when lootlog is in VERBS")
     assert(TB.HasBlessingCapability(), "blessing cap true when listed")
@@ -164,6 +194,7 @@ return function(ctx)
     TB.ServerCapabilitiesKnown = savedCapsKnown
     TB.SetStatus = savedSetStatus
     TB.LogMessage = savedLogMessage
+    TB.togglePending = savedTogglePending
     TB.Forever = nil
     TB.RefreshActionControls()
     TB.RefreshVersionLine()

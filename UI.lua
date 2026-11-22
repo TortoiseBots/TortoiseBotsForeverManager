@@ -1476,7 +1476,7 @@ local function BuildSwitchesCard(parent, buttons)
             local btn = makeActionButton(card, def.intent, 91, 8 + (switchIdx - 1) * 93, btnY)
             btn:SetHeight(22)
             if btn.icon then btn.icon:Show() end
-            btn.toggle = { key = def.toggle, intent = def.intent, label = def.label, tip = def.tip }
+            btn.toggle = { key = def.toggle, intent = def.intent, send = def.send, label = def.label, tip = def.tip }
             btn:SetScript("OnEnter", function(self, motion)
                 if not GameTooltip then return end
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -3483,6 +3483,17 @@ local function gateControl(F, control, cmd, restoreOnly)
     end
 end
 
+local function toggleForeverCmd(key, btn)
+    local toggle = btn and btn.toggle
+    if toggle and toggle.send == "behavior" then
+        return "behavior party " .. toggle.key .. " on"
+    end
+    if toggle and toggle.intent then
+        return "action " .. toggle.intent
+    end
+    return "behavior party " .. tostring(key) .. " on"
+end
+
 function TB.RefreshForeverGating(restoreOnly)
     local F = TB.Forever
     if not F then return end
@@ -3495,8 +3506,7 @@ function TB.RefreshForeverGating(restoreOnly)
         end
     end
     for key, btn in pairs(TB.toggleButtons or {}) do
-        local cmd = (btn.toggle and ("behavior party " .. btn.toggle.key .. " on")) or ("behavior party " .. tostring(key) .. " on")
-        gateControl(F, btn, cmd, restoreOnly)
+        gateControl(F, btn, toggleForeverCmd(key, btn), restoreOnly)
     end
     for id, btn in pairs(TB.stancePills or {}) do
         gateControl(F, btn, "action stance " .. tostring(id), restoreOnly)
@@ -3654,7 +3664,7 @@ end
 -- Party switch buttons follow the server's state (TBM:BOTSTATE).
 function TB.RefreshToggleButtons()
     for key, btn in pairs(TB.toggleButtons or {}) do
-        local cmd = (btn.toggle and ("behavior party " .. btn.toggle.key .. " on")) or ("behavior party " .. tostring(key) .. " on")
+        local cmd = toggleForeverCmd(key, btn)
         local state = TB.GetPartyToggleState and TB.GetPartyToggleState(key) or nil
         if key == "aoe" and not state and TB.aoeEnabled then state = "on" end
         paintSwitch(btn, btn.toggle.label, state, cmd)

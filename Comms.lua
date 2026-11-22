@@ -132,8 +132,9 @@ local function commitVerbs(tokens)
 end
 
 local function collectVerbs(text, into)
-    for item in string.gmatch(text or "", "[^,%s|]+") do
-        into[#into + 1] = item
+    for item in string.gmatch(text or "", "[^,|]+") do
+        item = TB.Trim(item)
+        if item ~= "" then into[#into + 1] = item end
     end
 end
 
