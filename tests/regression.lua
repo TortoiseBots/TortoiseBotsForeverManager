@@ -6034,6 +6034,10 @@ dofile(root .. "/tests/forever_hybrid_tests.lua")({
     addonSent = addonSent,
     advanceTime = function(dt) now = now + (dt or 1) end,
 })
+dofile(root .. "/tests/forever_panels_tests.lua")({
+    root = root,
+    advanceTime = function(dt) now = now + (dt or 1) end,
+})
 dofile(root .. "/tests/bridge_tactical_tests.lua")(root)
 dofile(root .. "/tests/bridge_toggles_tests.lua")(root)
 dofile(root .. "/tests/bridge_upkeep_tests.lua")(root)

@@ -21,8 +21,8 @@ local PREFIX = (C and C.ADDON_PREFIX) or "TBM"
 local BOTS = { "Alpha", "Bravo" }
 local GUIDS = { Alpha = "101", Bravo = "102" }
 local CLASS_IDS = { Alpha = "1", Bravo = "5" }   -- warrior, priest
-local FAKE_VERBS = "roster,list,alts,behavior,inv,professions,service,totem,choice,blessing,order,lootlog,loot,action,add,remove,logout,invite,uninvite,summon,role,autogear,maintenance,command,run,strategy,formation,downtime,features,help"
-local FAKE_CAPS = "order,order-steps,guild-order-steps,professions,blessing,choice,service,totem,loot,guild-bots,altsummary,run"
+local FAKE_VERBS = "roster,list,alts,behavior,inv,inventory,item,trade,professions,service,totem,choice,blessing,order,lootlog,loot,action,add,remove,logout,invite,uninvite,summon,role,autogear,maintenance,command,run,strategy,formation,downtime,features,help"
+local FAKE_CAPS = "order,order-steps,guild-order-steps,professions,blessing,blessing-player,choice,service,totem,behavior,inventory,loot-log,guild-bots,altsummary,run"
 
 local function emit(line)
     if TB.trace and TB.TracePrint then TB.TracePrint("< " .. line .. "   [fake]") end
@@ -129,19 +129,37 @@ function TB.FakeServerSend(cmd)
         return true
     end
     if verb == "behavior" then
-        local scope, arg = string.match(rest, "^(%S+)%s*(%S*)$")
+        local scope, arg = string.match(rest, "^(%S+)%s*(.*)$")
         if scope == "party" then
-            emit("TBM:ACTION_ACK|behavior|party|" .. #BOTS .. "|" .. (arg ~= "" and arg or "on"))
+            local state = string.match(arg or "", "(%S+)%s*$") or "on"
+            emit("TBM:ACTION_ACK|behavior|party|" .. #BOTS .. "|" .. (state ~= "" and state or "on"))
             return true
         end
-        local bot = scope ~= "" and scope or BOTS[1]
+        local bot = (scope and scope ~= "") and scope or BOTS[1]
         botStateStream(bot)
         emit("TBM:ACTION_ACK|behavior|bot:" .. bot .. "|1|-")
         return true
     end
-    if verb == "inv" then
+    if verb == "inv" or verb == "inventory" then
         local bot = rest ~= "" and rest or BOTS[1]
         inventoryStream(bot)
+        return true
+    end
+    if verb == "item" then
+        local bot, op, a, b = string.match(rest, "^(%S+)%s+(%S+)%s*(%S*)%s*(%S*)")
+        bot = (bot and bot ~= "") and bot or BOTS[1]
+        op = string.lower(op or "equip")
+        if op == "trade" then
+            emit("TBM:ACTION_ACK|item trade|bot:" .. bot .. "|1|open")
+        else
+            emit("TBM:ACTION_ACK|item " .. op .. "|bot:" .. bot .. "|1|2589")
+            inventoryStream(bot)
+        end
+        return true
+    end
+    if verb == "trade" then
+        local bot = (string.match(rest, "^(%S+)") or BOTS[1])
+        emit("TBM:ACTION_ACK|trade|bot:" .. bot .. "|1|open")
         return true
     end
     if verb == "professions" then
@@ -171,7 +189,11 @@ function TB.FakeServerSend(cmd)
         return true
     end
     if verb == "blessing" then
-        emit("TBM:BLESSING|" .. BOTS[1] .. "|warrior=auto,paladin=auto,druid=auto,known=might+wisdom")
+        local bot = (string.match(rest, "^(%S+)") or BOTS[1])
+        if string.lower(bot) == "party" or string.lower(bot) == "raid" then bot = BOTS[1] end
+        emit("TBM:BLESSING|" .. bot
+            .. "|warrior=might,paladin=wisdom,hunter=might,rogue=might,priest=wisdom,"
+            .. "shaman=wisdom,mage=wisdom,warlock=wisdom,druid=wisdom,known=might+wisdom+kings")
         return true
     end
     if verb == "order" then
@@ -187,7 +209,10 @@ function TB.FakeServerSend(cmd)
         return true
     end
     if verb == "lootlog" or verb == "loot" then
-        return true   -- an empty loot page is a valid answer
+        emit("TBM:LOOT_BEGIN|1|")
+        emit("TBM:LOOT|2026-11-22 20:00:00|" .. BOTS[1] .. "|StoreLootAction|2589|Linen Cloth|corpse|Defias Thug|1")
+        emit("TBM:LOOT_END|")
+        return true
     end
     -- Actions, movement, lifecycle, run and everything else: confirm the intent
     -- so the click flashes green and the status line settles.

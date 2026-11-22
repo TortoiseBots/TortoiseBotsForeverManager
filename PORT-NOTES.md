@@ -153,3 +153,17 @@ The API choices were checked against addons that already run on this client.
   3. **Grey** (`Not currently available` tooltip) otherwise.
 - Non-GM players: once `TBM:CAPS` arrives without `tb-gm`, bridge-only controls grey out while native controls stay lit.
 - Bootstrapping: before `VERBS` arrives, `"roster"` still sends as a silent `PARTY` addon probe so the server can answer with the handshake.
+
+## Native panel verbs & FakeServer (`a-panels`)
+
+- Verified wire grammar, reply parsing, and capability/verb gating for the 10 native panel verb families (`totem`, `blessing`, `choice`, `behavior`, `service`, `inv`/`inventory`, `item`, `trade`, `professions`, `lootlog`).
+- All 10 families un-grey automatically when listed in `TBM:VERBS` / `TBM:CAPS` (for both GM and non-GM players) and stay grey when omitted:
+  - `totem` (CAPS `totem`): `BotTotem.lua` slot/mode/set/status orders and Camp "Drop totems" (`totem party drop`).
+  - `blessing` (CAPS `blessing`, `blessing-player`): `BotBlessing.lua` class grid and per-player exceptions.
+  - `choice` (CAPS `choice`): `BotChoice.lua` aura, aspect, sting, curse, pet, and poison pickers.
+  - `behavior` (CAPS `behavior`): `BotPanel.lua` per-bot habit chips and `UI.lua` switch buttons.
+  - `service` (CAPS `service`): `BotPanel.lua` mage/warlock food, water, healthstone, and portal menu.
+  - `inv`/`inventory` + `item` + `trade` (CAPS `inventory`): `BotPanel.lua` gear/bags snapshot, `equip`, `unequip`, `give`, `trade`.
+  - `professions` (CAPS `professions`): `BotPanel.lua` skill lines, known recipes, and missing recipes.
+  - `lootlog` (CAPS `loot-log`): `BotLoot.lua` paged loot and roll history (and hides the Loot tab WIP banner).
+- Updated `FakeServer.lua` with `item`, `trade`, `inventory` in `FAKE_VERBS`; `behavior`, `inventory`, `blessing-player`, `loot-log` in `FAKE_CAPS`; full 9-class `TBM:BLESSING` reply, 3-arg `behavior` parsing, `item`/`trade` ACKs, and canned `TBM:LOOT` rows.
