@@ -10,6 +10,7 @@
 Constants.lua
 Compat.lua
 Forever.lua
+ForeverHybrid.lua
 Utils.lua
 Core.lua
 Roster.lua

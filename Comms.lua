@@ -91,10 +91,27 @@ local responseHistory = {}
 -- advertise "pull-seconds" when ".bot action pull [seconds]" is accepted;
 -- older servers send no CAPS line at all, and every intent stays plain.
 local serverCaps = {}
+local serverVerbs = {}
+local serverVerbsKnown = false
 
 function TB.HasServerCapability(name)
     if not name then return false end
     return serverCaps[string.lower(TB.Trim(name))] and true or false
+end
+
+function TB.HasServerVerb(token)
+    if not token then return false end
+    return serverVerbs[string.lower(TB.Trim(token))] and true or false
+end
+
+function TB.ServerVerbsKnown()
+    return serverVerbsKnown
+end
+
+function TB.ClearServerVerbs()
+    for key in pairs(serverVerbs) do serverVerbs[key] = nil end
+    serverVerbsKnown = false
+    TB._serverVerbs = serverVerbs
 end
 
 -- ── command transport ───────────────────────────────────────────────────────
@@ -832,6 +849,23 @@ function TB.OnSystemMessage(msg)
         local _, _, serverVersion = string.find(msg, "^TBM:VERSION|([^|%s]+)")
         if serverVersion then
             TB.serverVersion = serverVersion
+            if TB.RefreshVersionLine then TB.RefreshVersionLine() end
+            TB.lastSystem = msg
+            return
+        end
+    end
+
+    do
+        local _, _, verbs = string.find(msg, "^TBM:VERBS|(.*)$")
+        if verbs then
+            for key in pairs(serverVerbs) do serverVerbs[key] = nil end
+            for item in string.gmatch(verbs, "[^,%s|]+") do
+                serverVerbs[string.lower(TB.Trim(item))] = true
+            end
+            serverVerbsKnown = true
+            TB._serverVerbs = serverVerbs
+            if TB.RefreshForeverGating then TB.RefreshForeverGating() end
+            if TB.RefreshMiniBar then TB.RefreshMiniBar() end
             if TB.RefreshVersionLine then TB.RefreshVersionLine() end
             TB.lastSystem = msg
             return

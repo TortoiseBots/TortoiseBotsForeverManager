@@ -21,6 +21,7 @@ local PREFIX = (C and C.ADDON_PREFIX) or "TBM"
 local BOTS = { "Alpha", "Bravo" }
 local GUIDS = { Alpha = "101", Bravo = "102" }
 local CLASS_IDS = { Alpha = "1", Bravo = "5" }   -- warrior, priest
+local FAKE_VERBS = "roster,list,alts,behavior,inv,professions,service,totem,choice,blessing,order,lootlog,loot,action,add,remove,logout,invite,uninvite,summon,role,autogear,maintenance,command,run,strategy,formation,downtime,features,help"
 local FAKE_CAPS = "order,order-steps,guild-order-steps,professions,blessing,choice,service,totem,loot,guild-bots,altsummary,run"
 
 local function emit(line)
@@ -40,6 +41,7 @@ local function rosterStream()
     emit("TBM:TRANSPORT|party")
     emit("TBM:PROTO|1|0")
     emit("TBM:VERSION|v2.4.1-forever")
+    emit("TBM:VERBS|" .. FAKE_VERBS)
     emit("TBM:CAPS|" .. FAKE_CAPS)
     emit("TBM:ROSTER_BEGIN|" .. #BOTS)
     for _, name in ipairs(BOTS) do

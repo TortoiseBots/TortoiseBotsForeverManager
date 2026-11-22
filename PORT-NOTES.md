@@ -108,3 +108,14 @@ The API choices were checked against addons that already run on this client.
 - The server sends `TBM:TRANSPORT|party` and `TBM:CAPS|...` on `roster`: bridge mode switches off, the normal
   capability gating takes over.
 - Then update the README section "What works today" and retest every tab in game.
+
+## Hybrid transport (`ForeverHybrid.lua`, `TBM:VERBS`)
+
+- Servers migrating to the native protocol incrementally send `TBM:VERBS|<tok>,<tok>,...` right before `TBM:CAPS|...`
+  (tokens are top verbs like `roster`, `add`, `maintenance` or `action:<intent>` like `action:follow`).
+- Each command routes independently:
+  1. **Native** (`.bot` / `TBM` addon channel) when its token is in `VERBS`, or when `TBM:CAPS` arrived without `TBM:VERBS` (old-server fallback).
+  2. **Bridge** (`.tb` self-whisper, GM-only) when `Forever.Translate` has a twin and the last `.tb` reply was not a permission refusal.
+  3. **Grey** (`Not currently available` tooltip) otherwise.
+- Non-GM players: if a `.tb` command receives `"You do not have permission"`, bridge-only controls grey out while native controls stay lit; a later successful `.tb` reply re-enables bridge controls.
+- Bootstrapping: before `VERBS` arrives, `"roster"` still sends as a silent `PARTY` addon probe so the server can answer with the handshake.
