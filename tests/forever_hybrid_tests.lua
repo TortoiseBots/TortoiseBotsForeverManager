@@ -153,7 +153,33 @@ return function(ctx)
     assert(F.Native("action stop") == true, "old-server fallback: every command is native")
     assert(F.Route("action stop") == "native", "old-server fallback: Route is native")
 
-    -- 7. FakeServer handshake emits TBM:VERBS before TBM:CAPS.
+    -- 8. Counted VERBS stream: chunks accumulate, END commits only on match.
+    resetState()
+    TB.OnSystemMessage("TBM:VERBS_BEGIN|3")
+    assert(TB.ServerVerbsKnown() == false, "BEGIN alone does not mark verbs known")
+    assert(not TB.HasServerVerb("roster"), "chunk tokens are not live before END")
+    TB.OnSystemMessage("TBM:VERBS|roster,action:follow")
+    assert(TB.ServerVerbsKnown() == false, "chunks alone do not mark verbs known")
+    TB.OnSystemMessage("TBM:VERBS|add")
+    TB.OnSystemMessage("TBM:VERBS_END")
+    assert(TB.ServerVerbsKnown() == true, "END with matching count commits")
+    assert(TB.HasServerVerb("roster") and TB.HasServerVerb("action:follow") and TB.HasServerVerb("add"),
+        "streamed tokens all commit on END")
+
+    -- 9. Count mismatch on END keeps the previous set.
+    TB.OnSystemMessage("TBM:VERBS_BEGIN|5")
+    TB.OnSystemMessage("TBM:VERBS|roster")
+    TB.OnSystemMessage("TBM:VERBS_END")
+    assert(TB.HasServerVerb("add"), "mismatched END keeps the previous set")
+    assert(not TB.HasServerVerb("nonsense"), "mismatched chunk does not leak in")
+
+    -- 10. BEGIN|0 with no chunks commits the empty set.
+    TB.OnSystemMessage("TBM:VERBS_BEGIN|0")
+    TB.OnSystemMessage("TBM:VERBS_END")
+    assert(TB.ServerVerbsKnown() == true, "empty stream still marks verbs known")
+    assert(not TB.HasServerVerb("roster"), "empty stream commits the empty set")
+
+    -- 11. FakeServer handshake emits the VERBS stream before TBM:CAPS.
     resetState()
     TB.ServerCapabilitiesKnown = savedCapsKnown
     TB.SetFakeServer(true)

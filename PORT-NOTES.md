@@ -137,10 +137,16 @@ The API choices were checked against addons that already run on this client.
   capability gating takes over.
 - Then update the README section "What works today" and retest every tab in game.
 
-## Hybrid transport (`ForeverHybrid.lua`, `TBM:VERBS`)
+## Hybrid transport (`ForeverHybrid.lua`, `TBM:VERBS_*`)
 
-- Servers migrating to the native protocol incrementally send `TBM:VERBS|<tok>,<tok>,...` right before `TBM:CAPS|...`
-  (tokens are top verbs like `roster`, `add`, `maintenance` or `action:<intent>` like `action:follow`).
+- Servers migrating to the native protocol incrementally advertise the exact verbs they answer natively, right
+  before `TBM:CAPS|...`: `TBM:VERBS_BEGIN|<n>` (total token count), then `TBM:VERBS|<tok>,<tok>,...` lines, then
+  `TBM:VERBS_END`. Each chunk line fits one 255-byte addon message and never splits a token mid-message (the old
+  single `TBM:VERBS|...` line was cut mid-token at 255 bytes, hiding half the verbs from routing).
+  Tokens are top verbs like `roster`, `add`, `maintenance` or `action:<intent>` like `action:follow`.
+- The addon accumulates chunks and commits the set only on `TBM:VERBS_END` when the received count matches the
+  `BEGIN` total; a mismatch keeps the previous set. A bare `TBM:VERBS|...` line with no open `BEGIN` still commits
+  immediately (old servers).
 - Each command routes independently:
   1. **Native** (`.bot` / `TBM` addon channel) when its token is in `VERBS`, or when `TBM:CAPS` arrived without `TBM:VERBS` (old-server fallback).
   2. **Bridge** (`.tb` self-whisper, GM-only) when `Forever.Translate` has a twin and either the handshake has not arrived yet or `TBM:CAPS` includes `tb-gm`.

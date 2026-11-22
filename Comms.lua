@@ -93,6 +93,10 @@ local responseHistory = {}
 local serverCaps = {}
 local serverVerbs = {}
 local serverVerbsKnown = false
+-- Counted VERBS stream (TBM:VERBS_BEGIN|<n>, TBM:VERBS| chunks, TBM:VERBS_END):
+-- the token list outgrew one 255-byte addon message, so chunks accumulate and
+-- only commit on END when the count matches; a mismatch keeps the previous set.
+local pendingVerbs = nil
 
 function TB.HasServerCapability(name)
     if not name then return false end
@@ -111,7 +115,26 @@ end
 function TB.ClearServerVerbs()
     for key in pairs(serverVerbs) do serverVerbs[key] = nil end
     serverVerbsKnown = false
+    pendingVerbs = nil
     TB._serverVerbs = serverVerbs
+end
+
+local function commitVerbs(tokens)
+    for key in pairs(serverVerbs) do serverVerbs[key] = nil end
+    for _, item in ipairs(tokens) do
+        serverVerbs[string.lower(TB.Trim(item))] = true
+    end
+    serverVerbsKnown = true
+    TB._serverVerbs = serverVerbs
+    if TB.RefreshForeverGating then TB.RefreshForeverGating() end
+    if TB.RefreshMiniBar then TB.RefreshMiniBar() end
+    if TB.RefreshVersionLine then TB.RefreshVersionLine() end
+end
+
+local function collectVerbs(text, into)
+    for item in string.gmatch(text or "", "[^,%s|]+") do
+        into[#into + 1] = item
+    end
 end
 
 -- ── command transport ───────────────────────────────────────────────────────
@@ -856,17 +879,38 @@ function TB.OnSystemMessage(msg)
     end
 
     do
+        local _, _, beginTotal = string.find(msg, "^TBM:VERBS_BEGIN|(%d+)%s*$")
+        if beginTotal then
+            pendingVerbs = { total = tonumber(beginTotal), tokens = {} }
+            TB.lastSystem = msg
+            return
+        end
+    end
+
+    do
         local _, _, verbs = string.find(msg, "^TBM:VERBS|(.*)$")
         if verbs then
-            for key in pairs(serverVerbs) do serverVerbs[key] = nil end
-            for item in string.gmatch(verbs, "[^,%s|]+") do
-                serverVerbs[string.lower(TB.Trim(item))] = true
+            if pendingVerbs then
+                collectVerbs(verbs, pendingVerbs.tokens)
+            else
+                -- Old servers send one bare line with no BEGIN/END framing.
+                local tokens = {}
+                collectVerbs(verbs, tokens)
+                commitVerbs(tokens)
             end
-            serverVerbsKnown = true
-            TB._serverVerbs = serverVerbs
-            if TB.RefreshForeverGating then TB.RefreshForeverGating() end
-            if TB.RefreshMiniBar then TB.RefreshMiniBar() end
-            if TB.RefreshVersionLine then TB.RefreshVersionLine() end
+            TB.lastSystem = msg
+            return
+        end
+    end
+
+    do
+        if string.find(msg, "^TBM:VERBS_END%s*$") then
+            if pendingVerbs then
+                if #pendingVerbs.tokens == pendingVerbs.total then
+                    commitVerbs(pendingVerbs.tokens)
+                end
+                pendingVerbs = nil
+            end
             TB.lastSystem = msg
             return
         end

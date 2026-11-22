@@ -33,6 +33,30 @@ local function emit(line)
     end
 end
 
+-- Counted VERBS stream like the real server: BEGIN total, whole-token chunks
+-- within one addon message each (255 bytes), END. Splits greedily, never
+-- mid-token; an empty list still sends BEGIN|0, one empty line, END.
+local function emitVerbsStream(csv)
+    local tokens = {}
+    for item in string.gmatch(csv or "", "[^,]+") do
+        tokens[#tokens + 1] = item
+    end
+    emit("TBM:VERBS_BEGIN|" .. #tokens)
+    local current = "TBM:VERBS|"
+    for _, token in ipairs(tokens) do
+        local sep = ","
+        if current == "TBM:VERBS|" then sep = "" end
+        if current ~= "TBM:VERBS|" and #current + #sep + #token > 255 then
+            emit(current)
+            current = "TBM:VERBS|"
+            sep = ""
+        end
+        current = current .. sep .. token
+    end
+    emit(current)
+    emit("TBM:VERBS_END")
+end
+
 local function sendChatLine(line)
     if TB.OnSystemMessage then TB.OnSystemMessage(line) end
 end
@@ -41,7 +65,7 @@ local function rosterStream()
     emit("TBM:TRANSPORT|party")
     emit("TBM:PROTO|1|0")
     emit("TBM:VERSION|v2.4.1-forever")
-    emit("TBM:VERBS|" .. FAKE_VERBS)
+    emitVerbsStream(FAKE_VERBS)
     emit("TBM:CAPS|" .. FAKE_CAPS)
     emit("TBM:ROSTER_BEGIN|" .. #BOTS)
     for _, name in ipairs(BOTS) do

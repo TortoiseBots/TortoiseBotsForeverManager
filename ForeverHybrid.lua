@@ -1,7 +1,10 @@
 -- TortoiseBotsForever hybrid transport (native TBM:VERBS + .tb bridge fallback).
 --
--- The server advertises the verbs it answers natively via `TBM:VERBS|tok,...`
--- right before `TBM:CAPS`. Each command routes independently:
+-- The server advertises the verbs it answers natively via the counted stream
+-- `TBM:VERBS_BEGIN|<n>`, `TBM:VERBS|tok,...` chunks, `TBM:VERBS_END` right
+-- before `TBM:CAPS` (Comms.lua accumulates and commits on END when the count
+-- matches; this file only reads the committed set). Each command routes
+-- independently:
 --   1. Native (.bot / TBM addon channel) when its verb/intent is in VERBS,
 --      or when CAPS arrived without VERBS (old/other server fallback).
 --   2. Bridge (.tb whisper, GM-only) when F.Translate has a twin and either
