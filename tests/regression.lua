@@ -6028,6 +6028,11 @@ dofile(root .. "/tests/forever_bridge_tests.lua")({
     chatFilters = chatFilters,
 })
 dofile(root .. "/tests/forever_gating_tests.lua")(root)
+dofile(root .. "/tests/bridge_tactical_tests.lua")(root)
+dofile(root .. "/tests/bridge_toggles_tests.lua")(root)
+dofile(root .. "/tests/bridge_upkeep_tests.lua")(root)
+dofile(root .. "/tests/bridge_info_tests.lua")(root)
+dofile(root .. "/tests/bridge_cc_tests.lua")({ root = root, chatFilters = chatFilters })
 
 print("PASS: TortoiseBotsManager regression checks")
 

@@ -85,7 +85,7 @@ return function(ctx)
     assert(F.Translate("command Alpha share") == nil, "quest share needs an id the panel has not")
 
     -- Unknown / unsupported -> nil
-    for _, unk in ipairs({ "action stop", "action flee", "roster", "alts", "", "unknowncmd Alpha" }) do
+    for _, unk in ipairs({ "roster", "alts", "", "unknowncmd Alpha" }) do
         assert(F.Translate(unk) == nil, "Translate(" .. unk .. ") should be nil")
         assert(F.Available(unk) == false, "Available(" .. unk .. ") should be false")
     end
@@ -143,7 +143,7 @@ return function(ctx)
     assert(sentWhispers[1].chatType == "WHISPER", "F.Send should use WHISPER")
     assert(sentWhispers[1].target == "Tester", "F.Send should whisper self")
 
-    assert(F.Send("action stop") == false, "F.Send should return false for unavailable command")
+    assert(F.Send("unknowncmd Alpha") == false, "F.Send should return false for unavailable command")
     assert(lastStatusKind == "warn", "F.Send unavailable should set warn status")
 
     -- 4. Reply parsing cases (via TB.OnSystemMessage)
@@ -234,12 +234,12 @@ return function(ctx)
     assert(not chatFilters.CHAT_MSG_SYSTEM(nil, "CHAT_MSG_SYSTEM", "You do not have permission to perform that function."),
         "permission errors must stay visible in chat")
 
-    -- 6. Gear upgrades and planned twins
-    assert(F.Translate("autogear Alpha") == ".tb gear Alpha upgrade",
-        "autogear should translate to .tb gear upgrade")
+    -- 6. Autogear (.bot autogear) vs gear upgrades (.tb gear upgrade) and planned twins
+    assert(F.Translate("autogear Alpha") == ".bot autogear Alpha",
+        "autogear should translate to .bot autogear")
     assert(F.Available("autogear Alpha") == true, "autogear should be available")
     assert(F.Translate("autogear") == nil, "bare autogear should stay nil")
-    assert(F.Send("autogear Alpha") == true, "F.Send should send gear upgrades")
+    assert(F.Send("autogear Alpha") == true, "F.Send should send .bot autogear")
 
     -- Live twins: rest and use travel as `.tb cmd` now.
     assert(F.Future.rest.on == true, "rest row should be switched on")

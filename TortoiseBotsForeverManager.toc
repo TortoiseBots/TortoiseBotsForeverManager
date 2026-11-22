@@ -10,6 +10,11 @@
 Constants.lua
 Compat.lua
 Forever.lua
+BridgeTactical.lua
+BridgeToggles.lua
+BridgeUpkeep.lua
+BridgeInfo.lua
+BridgeCC.lua
 Utils.lua
 Core.lua
 Roster.lua

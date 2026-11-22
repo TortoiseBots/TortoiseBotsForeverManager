@@ -40,7 +40,13 @@ While the server has not sent `TBM:CAPS`:
 | Repair, Sell, Train | `.tb order <scope> repair` / `sell` / `train` (the bot must stand near the right NPC) |
 | Accept quests (camp tab) | `.tb quest <bot> accept *` (the offered quest on that bot) |
 | Bot role tank / healer / DPS (a bot, or yourself) | `.tb role <bot> tank` / `healer` / `dps`, `.tb role <word>` for yourself |
-| Auto-gear, Equip upgrades (bot panel) | `.tb gear <bot> upgrade` |
+| Auto-gear (bot panel) | `.bot autogear <bot> [quality\|ilvl]` (typed `.bot` chat, no GM needed) |
+| Equip upgrades (bot panel bags) | `.tb gear <bot> upgrade` |
+| Maintenance / Upkeep (bot panel) | `.bot maintenance <bot>` (typed `.bot` chat, no GM needed) |
+| Tactical orders (Stop, Flee, Guard, Stance, Engage, Rebuff, Interrupt) | `.tb order <scope> stop\|flee\|guard\|stance <word>\|engage [0-60]\|rebuff\|interrupt my` (or `.tb cmd interrupt <guid>`) |
+| Party switches (AoE, Auto CC, Sap, Loot) & Corpse run | `.tb cmd aoe\|autocc\|sap\|loot [on\|off\|status]` / `.tb cmd corpserun` (needs TBF PR #205) |
+| CC mark pick / clear & Ignore target | `.tb cmd cc <mark> <guid> [<bot>] [family]` / `.tb cmd cc clear [<bot>]` (needs TBF PR #208); `.tb ignore <scope> add\|remove <guid>` |
+| Bot stats / Who / Spec / Talents | `.bot stats <bot>` (needs TBF PR #203), `.bot who [all]`, `.tb spec <bot\|party> <tab\|name\|none>`, `.tb talents <bot>` |
 | Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |
 | Personal craft order (Professions view) | `.tb craftorder create <bot> <item> <amount>` / `cancel <bot>` / `status <bot>` |
 | Guild order (Farm, Buy, Craft, Cancel, List) | `.tb guildorder create <bot> <item> <amount> <farm\|buy\|craft>` / `cancel <bot>` / `list` (hours, keep, gold, bring dropped) |
@@ -54,6 +60,28 @@ While the server has not sent `TBM:CAPS`:
 - Every other command is not sent (only a silent addon message to the group, so a server that learns the protocol
   can answer it). Its control is grey with the tooltip; whole tabs without any working command (Roster list,
   Guild, Loot, Dungeon, Raid) show a WIP banner.
+
+### Command catch-up decision table (TBFM #7)
+
+| Server command / feature | Server status | Decision | Panel / Surface | Notes |
+|---|---|---|---|---|
+| `.tb order`/`.tb cmd` `stop`, `flee`, `guard`, `stance`, `engage`, `rebuff`, `interrupt` (M1/M2) | Merged (`main`) | Button + bridge line (`BridgeTactical.lua`) | Actions Fight cards | `stop`/`guard`/`rebuff`/`interrupt` un-greyed via existing gating; `flee`/`engage`/`stance` bridged |
+| `.tb cmd` `aoe`, `autocc`, `sap`, `loot` toggles (M3) | Open PR #205 | Bridge line + state parser (`BridgeToggles.lua`) | BotPanel toggles / Switches card | Needs PR #205 merged; `cmd` / `order status=read` replies update toggle state |
+| `.tb cmd corpserun` (M3) | Open PR #205 | Bridge line (`BridgeToggles.lua`) | Actions Death button (`corpse run`) | Needs PR #205 merged |
+| `.tb cmd cc <mark> <guid>` / `cc clear` (M4) | Open PR #208 | Bridge line (`BridgeCC.lua`) | Actions CC-mark menu | Needs PR #208 merged; `.tb cc` (allow/deny) Future row stays OFF |
+| `.bot who [all]` (R1) | Merged (`main`) | Bridge line + reply parser (`BridgeInfo.lua`) | Roster / Log | Sent as typed `.bot` chat; `roster` auto-poll stays `nil` in bridge mode |
+| `.bot add`, `.bot logout` (R2) | Merged (`main`) | Keep `.tb login`/`logout` in bridge; native `.bot` after #130 | Roster lifecycle bar | GM `.tb` path works today; non-GM `.bot` path waits for #130 |
+| `.bot follow/stay/attack/flee` (R2) | Merged (`main`) | Nothing new | — | Already covered by `.tb order` equivalents |
+| `.bot summon` (R3) | Open PR #203 | Keep `.tb tele` in bridge; native `.bot summon` after #130 | Roster summon | Cooldown-aware reply arrives with #130 |
+| `.bot stats <bot>` (R3) | Open PR #203 | Bridge line + reply parser (`BridgeUpkeep.lua`) | BotOverview / Status | Needs PR #203 merged; sent as typed `.bot` chat (no GM needed) |
+| `.bot maintenance <bot>` (#213) | Merged (`main`) | Bridge line + reply parser (`BridgeUpkeep.lua`) | BotPanel Upkeep button | Sent as typed `.bot` chat (no GM needed) |
+| `.bot autogear <bot> [cap]` (#213) | Merged (`main`) | Bridge line fixed (`Forever.lua` + `BridgeUpkeep.lua`) | BotPanel AutoGear button | Fixed from `.tb gear upgrade` to `.bot autogear`; `d equip upgrades` keeps `.tb gear upgrade` |
+| `.autogear [player] <spec> [ilvl]` (#213) | Merged (`main`) | Nothing in bridge (low priority) | — | Real-player self-gear command; typed chat |
+| `.tb spec` / `.tb talents` | Merged (`main`) | Bridge line + reply parser (`BridgeInfo.lua`) | BotChoice / Status & Log | `.tb spec <bot\|party> <tab\|name\|none>`, `.tb talents <bot>` |
+| `.tb bg status` / `events` (BG1) | Merged (`main`) | Nothing in bridge; BG card post-#130 | — | Behind `TortoiseBots.Bg.Enable=0`; skipped per #7 |
+| `.tb ignore add/remove` | Merged (`main`) | Bridge line (`BridgeCC.lua`) | Actions CC menu (future) | Helper + `ignore add/remove` translation ready |
+| R4/R5 whisper words (29 + 10) | Merged / PR #211 | Nothing | — | Typed chat by design |
+| Auto rolls / pool seed / class kits / demon pick | Merged (`main`) | Nothing | — | Server-only behavior |
 
 ## Client API changes
 
