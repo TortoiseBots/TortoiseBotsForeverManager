@@ -4,16 +4,14 @@
 -- right before `TBM:CAPS`. Each command routes independently:
 --   1. Native (.bot / TBM addon channel) when its verb/intent is in VERBS,
 --      or when CAPS arrived without VERBS (old/other server fallback).
---   2. Bridge (.tb whisper, GM-only) when F.Translate has a twin and the last
---      .tb reply was not a permission refusal.
+--   2. Bridge (.tb whisper, GM-only) when F.Translate has a twin and either
+--      the handshake has not arrived yet or CAPS includes "tb-gm".
 --   3. Grey (WIP tooltip) otherwise.
 
 TortoiseBots = TortoiseBots or {}
 local TB = TortoiseBots
 TB.Forever = TB.Forever or {}
 local F = TB.Forever
-
-local bridgePermRefused = false
 
 local function trim(s)
     return (string.gsub(s or "", "^%s*(.-)%s*$", "%1"))
@@ -65,41 +63,22 @@ function F.Native(cmd)
     return false
 end
 
-function F.IsBridgePermRefused()
-    return bridgePermRefused
-end
-
-function F.SetBridgePermRefused(refused)
-    local nextVal = refused and true or false
-    if bridgePermRefused == nextVal then return end
-    bridgePermRefused = nextVal
-    if TB.RefreshForeverGating then TB.RefreshForeverGating() end
-    if TB.RefreshMiniBar then TB.RefreshMiniBar() end
-end
-
-local origOnSystemMessage = F.OnSystemMessage
-function F.OnSystemMessage(msg)
-    local handled = origOnSystemMessage and origOnSystemMessage(msg) or false
-    if type(msg) == "string" and msg ~= "" then
-        local lower = string.lower(msg)
-        if string.find(lower, "do not have permission", 1, true)
-            or string.find(lower, "don't have permission", 1, true) then
-            F.SetBridgePermRefused(true)
-        elseif handled then
-            F.SetBridgePermRefused(false)
-        end
-    end
-    return handled
+-- Bridge (.tb) is allowed before the handshake arrives (legacy GM bootstrap),
+-- or after the handshake only when TBM:CAPS advertises "tb-gm".
+function F.BridgeAllowed()
+    local capsKnown = TB.ServerCapabilitiesKnown and TB.ServerCapabilitiesKnown() or false
+    if not capsKnown then return true end
+    return TB.HasServerCapability and TB.HasServerCapability("tb-gm") or false
 end
 
 function F.Available(cmd)
     if F.Native(cmd) then return true end
-    if bridgePermRefused then return false end
+    if not F.BridgeAllowed() then return false end
     return F.Translate(cmd) ~= nil
 end
 
 function F.Route(cmd)
     if F.Native(cmd) then return "native" end
-    if not bridgePermRefused and F.Translate(cmd) ~= nil then return "bridge" end
+    if F.BridgeAllowed() and F.Translate(cmd) ~= nil then return "bridge" end
     return "grey"
 end

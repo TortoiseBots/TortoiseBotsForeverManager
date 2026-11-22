@@ -1,4 +1,4 @@
--- Forever hybrid transport tests (TBM:VERBS + per-command routing + non-GM gating).
+-- Forever hybrid transport tests (TBM:VERBS + per-command routing + tb-gm gating).
 return function(ctx)
     local root = (type(ctx) == "table" and ctx.root) or ctx or "."
     local sent = type(ctx) == "table" and ctx.sent or nil
@@ -10,7 +10,7 @@ return function(ctx)
 
     local TB = TortoiseBots
     local F = TB.Forever
-    assert(F and F.Route and F.IsVerbNative, "ForeverHybrid.lua should load")
+    assert(F and F.Route and F.IsVerbNative and F.BridgeAllowed, "ForeverHybrid.lua should load")
 
     local savedParty = TB.PartyCount
     local savedCanSendAddon = TB.CanSendAddon
@@ -23,9 +23,9 @@ return function(ctx)
 
     local function resetState()
         TB.ClearServerVerbs()
-        TB._serverCaps = nil
+        TB.OnSystemMessage("TBM:CAPS|")
+        TB._serverCaps = {}
         if TB.InvalidateAddonTransport then TB.InvalidateAddonTransport() end
-        F.SetBridgePermRefused(false)
     end
 
     -- 1. Pre-handshake: VERBS unknown, CAPS unknown -> bridge for translated, grey for untranslated,
@@ -35,6 +35,7 @@ return function(ctx)
     TB.ServerCapabilitiesKnown = function() return false end
 
     assert(F.Native() == false, "pre-handshake Native() is false")
+    assert(F.BridgeAllowed() == true, "pre-handshake BridgeAllowed() is true (legacy GM bootstrap)")
     assert(F.Route("roster") == "grey", "roster is grey before VERBS arrives")
     assert(F.Route("action follow") == "bridge", "action follow routes to bridge before VERBS")
     assert(F.Route("action stop") == "grey", "action stop is grey before VERBS")
@@ -51,11 +52,11 @@ return function(ctx)
         assert(#sent == chatBefore, "bootstrapping roster probe must not go to chat")
     end
 
-    -- 2. TBM:VERBS parsing + per-command routing (native / bridge / grey).
+    -- 2. TBM:VERBS parsing + per-command routing for GM (CAPS includes tb-gm).
     TB.OnSystemMessage("TBM:TRANSPORT|party")
     TB.OnSystemMessage("TBM:VERBS|roster, add, action:follow|action:pull")
     TB.ServerCapabilitiesKnown = function() return true end
-    TB.OnSystemMessage("TBM:CAPS|order")
+    TB.OnSystemMessage("TBM:CAPS|order,tb-gm")
 
     assert(TB.ServerVerbsKnown() == true, "TBM:VERBS sets ServerVerbsKnown")
     assert(TB.HasServerVerb("roster"), "VERBS parses comma-separated token")
@@ -65,6 +66,7 @@ return function(ctx)
     assert(not TB.HasServerVerb("action:stay"), "unlisted token is not in VERBS")
 
     assert(F.Native() == false, "hybrid server: whole-server Native() stays false")
+    assert(F.BridgeAllowed() == true, "GM with tb-gm cap has BridgeAllowed() == true")
     assert(F.Native("roster") == true, "listed verb is native")
     assert(F.Native("add Alpha") == true, "listed verb with args is native")
     assert(F.Native("action follow") == true, "listed action:intent is native")
@@ -74,7 +76,7 @@ return function(ctx)
 
     assert(F.Route("roster") == "native", "roster routes native")
     assert(F.Route("action follow") == "native", "action follow routes native")
-    assert(F.Route("action stay") == "bridge", "action stay routes bridge")
+    assert(F.Route("action stay") == "bridge", "action stay routes bridge for GM (tb-gm)")
     assert(F.Route("action stop") == "grey", "action stop routes grey")
 
     if sent and addonSent and advanceTime then
@@ -89,7 +91,7 @@ return function(ctx)
         advanceTime(5)
         addonBefore = #addonSent
         chatBefore = #sent
-        assert(TB.SendBotCommand("action stay"), "bridged action stay sends")
+        assert(TB.SendBotCommand("action stay"), "bridged action stay sends for GM")
         assert(#sent == chatBefore + 1 and string.find(sent[#sent], "^%.tb order "),
             "bridged command goes as .tb whisper")
         assert(#addonSent == addonBefore, "bridged command does not go over addon channel")
@@ -114,11 +116,12 @@ return function(ctx)
     assert(stopBtn.enabled == false and stopBtn._foreverMarked == true,
         "removing action:stop from VERBS repaints and greys stop button again")
 
-    -- 4. Non-GM permission refusal: native controls stay lit, bridge-only controls go grey.
-    TB.OnSystemMessage("You do not have permission to perform that function.")
-    assert(F.IsBridgePermRefused() == true, "permission refusal sets bridgePermRefused")
-    assert(F.Route("action follow") == "native", "native command stays native after perm refusal")
-    assert(F.Route("action stay") == "grey", "bridge-only command becomes grey after perm refusal")
+    -- 4. Non-GM player: VERBS + CAPS without tb-gm -> native controls lit, bridge-only controls grey.
+    TB.OnSystemMessage("TBM:VERBS|roster,action:follow")
+    TB.OnSystemMessage("TBM:CAPS|order")
+    assert(F.BridgeAllowed() == false, "non-GM without tb-gm has BridgeAllowed() == false")
+    assert(F.Route("action follow") == "native", "native command stays native for non-GM")
+    assert(F.Route("action stay") == "grey", "bridge-only command becomes grey for non-GM")
     assert(followBtn.enabled == true and not followBtn._foreverMarked, "native follow stays lit for non-GM")
     assert(stayBtn.enabled == false and stayBtn._foreverMarked == true, "bridge-only stay goes grey for non-GM")
 
@@ -129,11 +132,11 @@ return function(ctx)
         assert(#sent == chatBefore, "non-GM bridge command does not whisper .tb")
     end
 
-    -- Subsequent .tb success clears refusal and restores bridge controls.
-    TB.OnSystemMessage("TortoiseBots: order queued")
-    assert(F.IsBridgePermRefused() == false, "successful .tb reply clears bridgePermRefused")
-    assert(F.Route("action stay") == "bridge", "bridge-only command restores after .tb success")
-    assert(stayBtn.enabled == true and not stayBtn._foreverMarked, "stay button re-enables after .tb success")
+    -- Re-granting tb-gm in CAPS restores bridge controls.
+    TB.OnSystemMessage("TBM:CAPS|order,tb-gm")
+    assert(F.BridgeAllowed() == true, "tb-gm in CAPS restores BridgeAllowed()")
+    assert(F.Route("action stay") == "bridge", "bridge-only command restores with tb-gm")
+    assert(stayBtn.enabled == true and not stayBtn._foreverMarked, "stay button re-enables with tb-gm")
 
     -- 5. Empty TBM:VERBS| does NOT fall back to old-server all-native.
     TB.OnSystemMessage("TBM:VERBS|")

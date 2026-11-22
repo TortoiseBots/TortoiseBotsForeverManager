@@ -115,7 +115,7 @@ The API choices were checked against addons that already run on this client.
   (tokens are top verbs like `roster`, `add`, `maintenance` or `action:<intent>` like `action:follow`).
 - Each command routes independently:
   1. **Native** (`.bot` / `TBM` addon channel) when its token is in `VERBS`, or when `TBM:CAPS` arrived without `TBM:VERBS` (old-server fallback).
-  2. **Bridge** (`.tb` self-whisper, GM-only) when `Forever.Translate` has a twin and the last `.tb` reply was not a permission refusal.
+  2. **Bridge** (`.tb` self-whisper, GM-only) when `Forever.Translate` has a twin and either the handshake has not arrived yet or `TBM:CAPS` includes `tb-gm`.
   3. **Grey** (`Not currently available` tooltip) otherwise.
-- Non-GM players: if a `.tb` command receives `"You do not have permission"`, bridge-only controls grey out while native controls stay lit; a later successful `.tb` reply re-enables bridge controls.
+- Non-GM players: once `TBM:CAPS` arrives without `tb-gm`, bridge-only controls grey out while native controls stay lit.
 - Bootstrapping: before `VERBS` arrives, `"roster"` still sends as a silent `PARTY` addon probe so the server can answer with the handshake.
