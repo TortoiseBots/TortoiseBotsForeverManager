@@ -908,7 +908,7 @@ function TB.Roles.SetBotRole(botName, role, classId)
 
     -- The server rebuilds the whole kit for the spec, off-spec default
     -- included; the bot's behaviour switches go back to their defaults.
-    local roleToken = (TB.Forever and not TB.Forever.Native())
+    local roleToken = (TB.Forever and not TB.Forever.Native("role " .. botName .. " tank"))
         and TB.Roles.GetPlayerRoleToken(roleDef.id)
         or (roleDef.spec or roleDef.id)
     TB.SendBotCommand("role " .. botName .. " " .. roleToken)

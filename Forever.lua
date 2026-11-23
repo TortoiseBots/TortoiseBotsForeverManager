@@ -217,6 +217,12 @@ local function orderScope()
     end
     return "party"
 end
+F.OrderScope = orderScope
+F.Me = me
+F.Trim = trim
+F.Translators = F.Translators or {}
+F.SystemParsers = F.SystemParsers or {}
+F.HideChatChecks = F.HideChatChecks or {}
 
 -- True once the server speaks the native protocol (TBM:CAPS arrived).
 function F.Native()
@@ -233,6 +239,11 @@ function F.Translate(cmd)
     local verb, rest = string.match(cmd, "^(%S+)%s*(.*)$")
     if not verb then return nil end
     verb = string.lower(verb)
+
+    for _, fn in ipairs(F.Translators or {}) do
+        local out = fn(cmd, verb, rest, orderScope)
+        if out ~= nil then return out end
+    end
 
     if verb == "action" then
         local intent = string.lower(rest)
@@ -256,7 +267,7 @@ function F.Translate(cmd)
 
     if verb == "autogear" then
         local bot = string.match(rest, "^(%S+)%s*$")
-        if bot then return ".tb gear " .. bot .. " upgrade" end
+        if bot then return ".bot autogear " .. bot end
         return nil
     end
 
@@ -427,6 +438,9 @@ local function emitStatus(text, kind, rawMsg)
     if TB.SetStatus then TB.SetStatus(text, kind) end
     if TB.LogMessage then TB.LogMessage(text, rawMsg or text) end
 end
+F.ParseKV = parseKV
+F.ReadableCode = readableCode
+F.EmitStatus = emitStatus
 
 local function isTortoiseWarn(body)
     return string.find(body, "not logged in", 1, true)
@@ -541,6 +555,10 @@ function F.OnSystemMessage(msg)
     if type(msg) ~= "string" or msg == "" then return false end
     if issecretvalue and issecretvalue(msg) then return false end
 
+    for _, fn in ipairs(F.SystemParsers or {}) do
+        if fn(msg, emitStatus) then return true end
+    end
+
     if string.find(msg, "You do not have permission", 1, true) then
         emitStatus("Forever bridge: needs a GM account (.tb test commands).", "warn", msg)
         return true
@@ -612,6 +630,10 @@ end
 function F.ShouldHideChatMessage(event, message, sender)
     if type(message) ~= "string" then return false end
     if issecretvalue and issecretvalue(message) then return false end
+
+    for _, fn in ipairs(F.HideChatChecks or {}) do
+        if fn(event, message, sender, isSelfSender) then return true end
+    end
 
     if string.find(message, "^%.tb$") or string.find(message, "^%.tb%s") then
         if event == "CHAT_MSG_WHISPER_INFORM" then return true end

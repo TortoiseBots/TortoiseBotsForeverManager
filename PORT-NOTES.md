@@ -22,7 +22,7 @@ Server: **TortoiseBotsForever**, which is still being ported.
 | Folder / `.toc` | `TortoiseBotsManager` | `TortoiseBotsForeverManager` |
 | Interface | `11200` | the WoW Forever client's (see the `.toc`) |
 | Window title | TortoiseBots Manager | TortoiseBots Forever Manager |
-| Version | `2.4.1` | `2.4.1-forever.2` (`TB.C.VERSION` stays `2.4.1` for the update check) |
+| Version | `2.4.1` | `2.4.1-forever.3` (`TB.C.VERSION` stays `2.4.1` for the update check) |
 | SavedVariables | `TortoiseBotsDB` | unchanged (each client has its own WTF folder, so no clash) |
 | Slash commands | `/tbm` | `/tbfm` (with `/tbfm trace`, `/tbfm fake` and `/tbfm status` for the trace and the offline demo) |
 
@@ -40,7 +40,13 @@ While the server has not sent `TBM:CAPS`:
 | Repair, Sell, Train | `.tb order <scope> repair` / `sell` / `train` (the bot must stand near the right NPC) |
 | Accept quests (camp tab) | `.tb quest <bot> accept *` (the offered quest on that bot) |
 | Bot role tank / healer / DPS (a bot, or yourself) | `.tb role <bot> tank` / `healer` / `dps`, `.tb role <word>` for yourself |
-| Auto-gear, Equip upgrades (bot panel) | `.tb gear <bot> upgrade` |
+| Auto-gear (bot panel) | `.bot autogear <bot> [quality\|ilvl]` (typed `.bot` chat, no GM needed) |
+| Equip upgrades (bot panel bags) | `.tb gear <bot> upgrade` |
+| Maintenance / Upkeep (bot panel) | `.bot maintenance <bot>` (typed `.bot` chat, no GM needed) |
+| Tactical orders (Stop, Flee, Guard, Stance, Engage, Rebuff, Interrupt) | `.tb order <scope> stop\|flee\|guard\|stance <word>\|engage [0-60]\|rebuff\|interrupt my` (or `.tb cmd interrupt <guid>`) |
+| Party switches (AoE, Auto CC, Sap, Loot) & Corpse run | `.tb cmd aoe\|autocc\|sap\|loot [on\|off\|status]` / `.tb cmd corpserun` (needs TBF PR #205) |
+| CC mark pick / clear & Ignore target | `.tb cmd cc <mark> <guid> [<bot>] [family]` / `.tb cmd cc clear [<bot>]` (needs TBF PR #208); `.tb ignore <scope> add\|remove <guid>` |
+| Bot stats / Who / Spec / Talents | `.bot stats <bot>` (needs TBF PR #203), `.bot who [all]`, `.tb spec <bot\|party> <tab\|name\|none>`, `.tb talents <bot>` |
 | Log out, Kick, Summon | `.tb logout <bot>`, `.tb ungroup <bot>`, `.tb tele <bot> to <you>` |
 | Personal craft order (Professions view) | `.tb craftorder create <bot> <item> <amount>` / `cancel <bot>` / `status <bot>` |
 | Guild order (Farm, Buy, Craft, Cancel, List) | `.tb guildorder create <bot> <item> <amount> <farm\|buy\|craft>` / `cancel <bot>` / `list` (hours, keep, gold, bring dropped) |
@@ -54,6 +60,28 @@ While the server has not sent `TBM:CAPS`:
 - Every other command is not sent (only a silent addon message to the group, so a server that learns the protocol
   can answer it). Its control is grey with the tooltip; whole tabs without any working command (Roster list,
   Guild, Loot, Dungeon, Raid) show a WIP banner.
+
+### Command catch-up decision table (TBFM #7)
+
+| Server command / feature | Server status | Decision | Panel / Surface | Notes |
+|---|---|---|---|---|
+| `.tb order`/`.tb cmd` `stop`, `flee`, `guard`, `stance`, `engage`, `rebuff`, `interrupt` (M1/M2) | Merged (`main`) | Button + bridge line (`BridgeTactical.lua`) | Actions Fight cards | `stop`/`guard`/`rebuff`/`interrupt` un-greyed via existing gating; `flee`/`engage`/`stance` bridged |
+| `.tb cmd` `aoe`, `autocc`, `sap`, `loot` toggles (M3) | Open PR #205 | Bridge line + state parser (`BridgeToggles.lua`) | BotPanel toggles / Switches card | Needs PR #205 merged; `cmd` / `order status=read` replies update toggle state |
+| `.tb cmd corpserun` (M3) | Open PR #205 | Bridge line (`BridgeToggles.lua`) | Actions Death button (`corpse run`) | Needs PR #205 merged |
+| `.tb cmd cc <mark> <guid>` / `cc clear` (M4) | Open PR #208 | Bridge line (`BridgeCC.lua`) | Actions CC-mark menu | Needs PR #208 merged; `.tb cc` (allow/deny) Future row stays OFF |
+| `.bot who [all]` (R1) | Merged (`main`) | Bridge line + reply parser (`BridgeInfo.lua`) | Roster / Log | Sent as typed `.bot` chat; `roster` auto-poll stays `nil` in bridge mode |
+| `.bot add`, `.bot logout` (R2) | Merged (`main`) | Keep `.tb login`/`logout` in bridge; native `.bot` after #130 | Roster lifecycle bar | GM `.tb` path works today; non-GM `.bot` path waits for #130 |
+| `.bot follow/stay/attack/flee` (R2) | Merged (`main`) | Nothing new | — | Already covered by `.tb order` equivalents |
+| `.bot summon` (R3) | Open PR #203 | Keep `.tb tele` in bridge; native `.bot summon` after #130 | Roster summon | Cooldown-aware reply arrives with #130 |
+| `.bot stats <bot>` (R3) | Open PR #203 | Bridge line + reply parser (`BridgeUpkeep.lua`) | BotOverview / Status | Needs PR #203 merged; sent as typed `.bot` chat (no GM needed) |
+| `.bot maintenance <bot>` (#213) | Merged (`main`) | Bridge line + reply parser (`BridgeUpkeep.lua`) | BotPanel Upkeep button | Sent as typed `.bot` chat (no GM needed) |
+| `.bot autogear <bot> [cap]` (#213) | Merged (`main`) | Bridge line fixed (`Forever.lua` + `BridgeUpkeep.lua`) | BotPanel AutoGear button | Fixed from `.tb gear upgrade` to `.bot autogear`; `d equip upgrades` keeps `.tb gear upgrade` |
+| `.autogear [player] <spec> [ilvl]` (#213) | Merged (`main`) | Nothing in bridge (low priority) | — | Real-player self-gear command; typed chat |
+| `.tb spec` / `.tb talents` | Merged (`main`) | Bridge line + reply parser (`BridgeInfo.lua`) | BotChoice / Status & Log | `.tb spec <bot\|party> <tab\|name\|none>`, `.tb talents <bot>` |
+| `.tb bg status` / `events` (BG1) | Merged (`main`) | Nothing in bridge; BG card post-#130 | — | Behind `TortoiseBots.Bg.Enable=0`; skipped per #7 |
+| `.tb ignore add/remove` | Merged (`main`) | Bridge line (`BridgeCC.lua`) | Actions CC menu (future) | Helper + `ignore add/remove` translation ready |
+| R4/R5 whisper words (29 + 10) | Merged / PR #211 | Nothing | — | Typed chat by design |
+| Auto rolls / pool seed / class kits / demon pick | Merged (`main`) | Nothing | — | Server-only behavior |
 
 ## Client API changes
 
@@ -108,3 +136,34 @@ The API choices were checked against addons that already run on this client.
 - The server sends `TBM:TRANSPORT|party` and `TBM:CAPS|...` on `roster`: bridge mode switches off, the normal
   capability gating takes over.
 - Then update the README section "What works today" and retest every tab in game.
+
+## Hybrid transport (`ForeverHybrid.lua`, `TBM:VERBS_*`)
+
+- Servers migrating to the native protocol incrementally advertise the exact verbs they answer natively, right
+  before `TBM:CAPS|...`: `TBM:VERBS_BEGIN|<n>` (total token count), then `TBM:VERBS|<tok>,<tok>,...` lines, then
+  `TBM:VERBS_END`. Each chunk line fits one 255-byte addon message and never splits a token mid-message (the old
+  single `TBM:VERBS|...` line was cut mid-token at 255 bytes, hiding half the verbs from routing).
+  Tokens are top verbs like `roster`, `add`, `maintenance` or `action:<intent>` like `action:follow`.
+- The addon accumulates chunks and commits the set only on `TBM:VERBS_END` when the received count matches the
+  `BEGIN` total; a mismatch keeps the previous set. A bare `TBM:VERBS|...` line with no open `BEGIN` still commits
+  immediately (old servers).
+- Each command routes independently:
+  1. **Native** (`.bot` / `TBM` addon channel) when its token is in `VERBS`, or when `TBM:CAPS` arrived without `TBM:VERBS` (old-server fallback).
+  2. **Bridge** (`.tb` self-whisper, GM-only) when `Forever.Translate` has a twin and either the handshake has not arrived yet or `TBM:CAPS` includes `tb-gm`.
+  3. **Grey** (`Not currently available` tooltip) otherwise.
+- Non-GM players: once `TBM:CAPS` arrives without `tb-gm`, bridge-only controls grey out while native controls stay lit.
+- Bootstrapping: before `VERBS` arrives, `"roster"` still sends as a silent `PARTY` addon probe so the server can answer with the handshake.
+
+## Native panel verbs & FakeServer (`a-panels`)
+
+- Verified wire grammar, reply parsing, and capability/verb gating for the 10 native panel verb families (`totem`, `blessing`, `choice`, `behavior`, `service`, `inv`/`inventory`, `item`, `trade`, `professions`, `lootlog`).
+- All 10 families un-grey automatically when listed in `TBM:VERBS` / `TBM:CAPS` (for both GM and non-GM players) and stay grey when omitted:
+  - `totem` (CAPS `totem`): `BotTotem.lua` slot/mode/set/status orders and Camp "Drop totems" (`totem party drop`).
+  - `blessing` (CAPS `blessing`, `blessing-player`): `BotBlessing.lua` class grid and per-player exceptions.
+  - `choice` (CAPS `choice`): `BotChoice.lua` aura, aspect, sting, curse, pet, and poison pickers.
+  - `behavior` (CAPS `behavior`): `BotPanel.lua` per-bot habit chips and `UI.lua` switch buttons.
+  - `service` (CAPS `service`): `BotPanel.lua` mage/warlock food, water, healthstone, and portal menu.
+  - `inv`/`inventory` + `item` + `trade` (CAPS `inventory`): `BotPanel.lua` gear/bags snapshot, `equip`, `unequip`, `give`, `trade`.
+  - `professions` (CAPS `professions`): `BotPanel.lua` skill lines, known recipes, and missing recipes.
+  - `lootlog` (CAPS `loot-log`): `BotLoot.lua` paged loot and roll history (and hides the Loot tab WIP banner).
+- Updated `FakeServer.lua` with `item`, `trade`, `inventory` in `FAKE_VERBS`; `behavior`, `inventory`, `blessing-player`, `loot-log` in `FAKE_CAPS`; full 9-class `TBM:BLESSING` reply, 3-arg `behavior` parsing, `item`/`trade` ACKs, and canned `TBM:LOOT` rows.

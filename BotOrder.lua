@@ -144,7 +144,7 @@ local function now() return (GetTime and GetTime()) or 0 end
 -- ── capability gate + permission ─────────────────────────────────────────
 function TB.HasOrderCapability()
     if TB.HasServerCapability and TB.HasServerCapability(CAP) then return true end
-    if TB.Forever and not TB.Forever.Native() and TB.Forever.Available("order list") then
+    if TB.Forever and not TB.Forever.Native("order list") and TB.Forever.Available("order list") then
         return true
     end
     return false
@@ -4013,7 +4013,7 @@ function TB.RefreshOrderChrome(order)
             win.statusLine:SetText("No order on this bot.")
         end
     end
-    local bridge = TB.Forever and not TB.Forever.Native()
+    local bridge = TB.Forever and not TB.Forever.Native("order")
     local mayOrderHere = TB.CanGiveOrders() or (bridge and not TB.IsGuildOrderContext() and orderKind == "craft")
     if win.cancelBtn then
         if (order or (bridge and windowBot)) and (TB.CanGiveOrders() or (bridge and not TB.IsGuildOrderContext())) then
@@ -4028,7 +4028,7 @@ function TB.RefreshOrderChrome(order)
     end
     if TB.Forever and win.kindPills then
         for kind, pill in pairs(win.kindPills) do
-            if TB.Forever.Native() then
+            if TB.Forever.Native("order") then
                 TB.Forever.RestoreAvailable(pill)
             else
                 local sample = (kind == "enchant") and "" or ("order " .. (windowBot or "Alpha") .. " " .. kind .. " 1 1")
@@ -4037,7 +4037,7 @@ function TB.RefreshOrderChrome(order)
         end
     end
     if TB.Forever and win.sendBtn then
-        if TB.Forever.Native() then
+        if TB.Forever.Native("order") then
             TB.Forever.RestoreAvailable(win.sendBtn)
         elseif orderKind == "enchant" then
             TB.Forever.MarkUnavailable(win.sendBtn)
@@ -4063,7 +4063,7 @@ function TB.RefreshOrderChrome(order)
         end)
         win.sendItemsBtn:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
         if TB.Forever then
-            if TB.Forever.Native() then
+            if TB.Forever.Native("order") then
                 TB.Forever.RestoreAvailable(win.sendItemsBtn)
             else
                 TB.Forever.MarkUnavailable(win.sendItemsBtn)

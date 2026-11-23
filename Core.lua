@@ -344,10 +344,10 @@ function TB.SendBotCommand(cmd, opts)
     cmd = TB.Trim(cmd or "")
     if cmd == "" then return false end
 
-    -- TortoiseBotsForever has no `.bot` layer yet: run the `.tb` twin, if any.
+    -- Hybrid transport: use `.tb` bridge only when this command is not native.
     local F = TB.Forever
-    if F and not F.Native() and not (TB.fake and TB.fake.enabled) then
-        if F.Translate(cmd) then
+    if F and not F.Native(cmd) and not (TB.fake and TB.fake.enabled) then
+        if F.Available(cmd) and F.Translate(cmd) then
             local sent = F.Send(cmd)
             if sent then
                 TB.lastCommand = cmd

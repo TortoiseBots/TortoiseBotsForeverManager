@@ -202,8 +202,8 @@ function TB.BuildGuildRowMenu(name, addButton)
     if not name or name == "" then return 0 end
     local count = 0
     local F = TB.Forever
-    local foreverWip = F and not F.Native() or false
-    local canCancelBridge = F and not F.Native() and F.Available("order " .. name .. " cancel")
+    local foreverWip = F and not F.Native("order") or false
+    local canCancelBridge = F and not F.Native("order") and F.Available("order " .. name .. " cancel")
     local orderCap = TB.HasOrderCapability and TB.HasOrderCapability() or false
     local order = orderCap and TB.GetBotOrder and TB.GetBotOrder(name) or nil
     local mayOrder = ((not foreverWip) or canCancelBridge) and orderCap and TB.CanGiveOrders and TB.CanGiveOrders() or false
@@ -252,7 +252,7 @@ function TB.BuildRosterRowMenu(name, addButton)
         if TB.IsRosterActionEligible and TB.IsRosterActionEligible(name, pair.action) then
             local verb, bot = pair.verb, name
             local cmd = TB.BuildCommand(verb, bot)
-            local avail = not F or F.Native() or F.Available(cmd)
+            local avail = not F or F.Available(cmd)
             addButton({
                 text = avail and pair.label or (pair.label .. " (WIP)"),
                 notCheckable = 1,
@@ -1476,7 +1476,7 @@ local function BuildSwitchesCard(parent, buttons)
             local btn = makeActionButton(card, def.intent, 91, 8 + (switchIdx - 1) * 93, btnY)
             btn:SetHeight(22)
             if btn.icon then btn.icon:Show() end
-            btn.toggle = { key = def.toggle, intent = def.intent, label = def.label, tip = def.tip }
+            btn.toggle = { key = def.toggle, intent = def.intent, send = def.send, label = def.label, tip = def.tip }
             btn:SetScript("OnEnter", function(self, motion)
                 if not GameTooltip then return end
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -3476,11 +3476,22 @@ end
 
 local function gateControl(F, control, cmd, restoreOnly)
     if not control then return end
-    if restoreOnly or F.Native() then
+    if restoreOnly or F.Native(cmd) then
         F.RestoreAvailable(control)
     else
         F.GateControl(control, cmd or "")
     end
+end
+
+local function toggleForeverCmd(key, btn)
+    local toggle = btn and btn.toggle
+    if toggle and toggle.send == "behavior" then
+        return "behavior party " .. toggle.key .. " on"
+    end
+    if toggle and toggle.intent then
+        return "action " .. toggle.intent
+    end
+    return "behavior party " .. tostring(key) .. " on"
 end
 
 function TB.RefreshForeverGating(restoreOnly)
@@ -3494,46 +3505,54 @@ function TB.RefreshForeverGating(restoreOnly)
             gateControl(F, btn, cmd, restoreOnly)
         end
     end
-    for _, btn in pairs(TB.toggleButtons or {}) do
-        gateControl(F, btn, "", restoreOnly)
+    for key, btn in pairs(TB.toggleButtons or {}) do
+        gateControl(F, btn, toggleForeverCmd(key, btn), restoreOnly)
     end
-    for _, btn in pairs(TB.stancePills or {}) do
-        gateControl(F, btn, "", restoreOnly)
+    for id, btn in pairs(TB.stancePills or {}) do
+        gateControl(F, btn, "action stance " .. tostring(id), restoreOnly)
     end
-    for _, btn in pairs(TB.formationPills or {}) do
-        gateControl(F, btn, "", restoreOnly)
+    for id, btn in pairs(TB.formationPills or {}) do
+        gateControl(F, btn, "formation " .. tostring(id), restoreOnly)
     end
     for _, stepper in pairs(TB.pullTimers or {}) do
-        gateControl(F, stepper.minus, "", restoreOnly)
-        gateControl(F, stepper.plus, "", restoreOnly)
+        gateControl(F, stepper.minus, "action pull 5", restoreOnly)
+        gateControl(F, stepper.plus, "action pull 5", restoreOnly)
     end
     if TB.lifecycleButtons then
-        for _, key in ipairs({ "invite", "fill", "altsummary" }) do
-            gateControl(F, TB.lifecycleButtons[key], "", restoreOnly)
+        local lifecycleCmds = { invite = "invite Alpha", fill = "invite Alpha", altsummary = "alts" }
+        for key, cmd in pairs(lifecycleCmds) do
+            gateControl(F, TB.lifecycleButtons[key], cmd, restoreOnly)
         end
     end
-    gateControl(F, TB.infoButton, "", restoreOnly)
+    gateControl(F, TB.infoButton, "features", restoreOnly)
     if TB.raidFrame then
         for _, key in ipairs({ "tankface", "douse", "customToggle", "customCheck", "statusButton" }) do
-            gateControl(F, TB.raidFrame[key], "", restoreOnly)
+            gateControl(F, TB.raidFrame[key], "raid", restoreOnly)
         end
     end
     if TB.guildFrame then
-        gateControl(F, TB.guildFrame.rankBtn, "", restoreOnly)
-        gateControl(F, TB.guildFrame.orderBtn, "", restoreOnly)
+        gateControl(F, TB.guildFrame.rankBtn, "order rank 1", restoreOnly)
+        gateControl(F, TB.guildFrame.orderBtn, "order Alpha craft 1 1", restoreOnly)
         gateControl(F, TB.guildFrame.activeBtn, "order list", restoreOnly)
         for _, row in ipairs(TB.guildFrame.rows or {}) do
             gateControl(F, row.ordBtn, "order " .. (row.claimedName or "Alpha") .. " craft 1 1", restoreOnly)
-            gateControl(F, row.meetBtn, "", restoreOnly)
+            gateControl(F, row.meetBtn, "order " .. (row.claimedName or "Alpha") .. " meet", restoreOnly)
         end
     end
     if TB.ccMenu then
-        gateControl(F, TB.ccMenu.clearAll, "", restoreOnly)
+        gateControl(F, TB.ccMenu.clearAll, "action cc clear", restoreOnly)
     end
 
     if not restoreOnly then
-        for _, frame in ipairs({ TB.rosterFrame, TB.guildFrame, TB.lootFrame, TB.dungeonFrame, TB.raidFrame }) do
-            updateWipBanner(frame, wip)
+        local bannerCmds = {
+            { frame = TB.rosterFrame, cmd = "roster" },
+            { frame = TB.guildFrame, cmd = "order" },
+            { frame = TB.lootFrame, cmd = "lootlog" },
+            { frame = TB.dungeonFrame, cmd = "run" },
+            { frame = TB.raidFrame, cmd = "raid" },
+        }
+        for _, entry in ipairs(bannerCmds) do
+            updateWipBanner(entry.frame, wip and not F.Native(entry.cmd))
         end
     end
 end
@@ -3625,9 +3644,9 @@ end
 -- An on/off button's look: lit gold and white text when on, dimmed grey
 -- text when off, gold text with "~" when the bots disagree. Colour codes in
 -- the text hold through hover and press.
-local function paintSwitch(btn, label, state)
+local function paintSwitch(btn, label, state, cmd)
     btn.switchState = state
-    if TB.Forever and not TB.Forever.Native() then
+    if TB.Forever and not TB.Forever.Available(cmd or "") then
         btn:SetText("|cff5a5a5a" .. label .. "|r")
         TB.SetButtonActive(btn, false)
         return
@@ -3645,10 +3664,11 @@ end
 -- Party switch buttons follow the server's state (TBM:BOTSTATE).
 function TB.RefreshToggleButtons()
     for key, btn in pairs(TB.toggleButtons or {}) do
+        local cmd = toggleForeverCmd(key, btn)
         local state = TB.GetPartyToggleState and TB.GetPartyToggleState(key) or nil
         if key == "aoe" and not state and TB.aoeEnabled then state = "on" end
-        paintSwitch(btn, btn.toggle.label, state)
-        local wip = TB.Forever and not TB.Forever.Native()
+        paintSwitch(btn, btn.toggle.label, state, cmd)
+        local wip = TB.Forever and not TB.Forever.Available(cmd)
         if wip or (TB.togglePending and TB.togglePending[key]) then btn:Disable() else btn:Enable() end
         if btn.actionIntent and TB.SetButtonFeedback and TB.ActionFeedbackState then
             TB.SetButtonFeedback(btn, TB.ActionFeedbackState(btn.actionIntent))
