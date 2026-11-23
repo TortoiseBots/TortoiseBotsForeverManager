@@ -338,6 +338,10 @@ end
 -- dot command from any chat line before it is delivered. Must run from a
 -- click (a timer or an event may still be blocked).
 function F.Send(cmd)
+    if TB.ChatBlocked and TB.ChatBlocked() then
+        if TB.SetStatus then TB.SetStatus("Forever bridge is blocked in combat; try after combat.", "warn") end
+        return false
+    end
     local line = F.Translate(cmd)
     local player = me()
     if not line or not player then
@@ -362,6 +366,10 @@ end
 -- No button sends this yet; this is the wiring it will call. Must run from a
 -- click like F.Send. Returns false (with a status line) with no target.
 function F.IgnoreTarget(add)
+    if TB.ChatBlocked and TB.ChatBlocked() then
+        if TB.SetStatus then TB.SetStatus("Forever bridge is blocked in combat; try after combat.", "warn") end
+        return false
+    end
     local guid = F.TargetGuidHex()
     local player = me()
     if not guid or not player then

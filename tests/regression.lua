@@ -6044,5 +6044,27 @@ dofile(root .. "/tests/bridge_upkeep_tests.lua")(root)
 dofile(root .. "/tests/bridge_info_tests.lua")(root)
 dofile(root .. "/tests/bridge_cc_tests.lua")({ root = root, chatFilters = chatFilters })
 
+-- Chat fallback must queue while combat-locked; calling SendChatMessage there
+-- taints the client and prints ADDON_ACTION_BLOCKED UNKNOWN().
+pubForever = TB.Forever
+TB.Forever = nil
+TB.SetAddonTransport("none")
+now = now + 1000
+InCombatLockdown = function() return true end
+pubBefore = table.getn(sent)
+assert(TB.SendBotCommand("combat-test") == false, "combat chat fallback must queue")
+assert(table.getn(sent) == pubBefore, "combat chat fallback must not reach SendChatMessage")
+InCombatLockdown = function() return false end
+pubFlush = 0
+while pubFlush < 100 do
+    pubFlush = pubFlush + 1
+    now = now + 1
+    frames["TortoiseBotsManagerQueueFrame"].scripts.OnUpdate(frames["TortoiseBotsManagerQueueFrame"])
+end
+assert(sent[table.getn(sent)] == ".bot combat-test", "queued chat command must send after combat ends")
+TB.Forever = pubForever
+InCombatLockdown = nil
+TB.SetAddonTransport("party")
+
 print("PASS: TortoiseBotsManager regression checks")
 
