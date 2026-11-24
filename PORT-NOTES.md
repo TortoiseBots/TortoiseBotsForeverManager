@@ -22,7 +22,7 @@ Server: **TortoiseBotsForever**, which is still being ported.
 | Folder / `.toc` | `TortoiseBotsManager` | `TortoiseBotsForeverManager` |
 | Interface | `11200` | the WoW Forever client's (see the `.toc`) |
 | Window title | TortoiseBots Manager | TortoiseBots Forever Manager |
-| Version | `2.4.1` | `2.4.1-forever.3` (`TB.C.VERSION` stays `2.4.1` for the update check) |
+| Version | `2.4.1` | own version, independent of TBM; the Release action sets the `.toc` and `TB.C.VERSION` together |
 | SavedVariables | `TortoiseBotsDB` | unchanged (each client has its own WTF folder, so no clash) |
 | Slash commands | `/tbm` | `/tbfm` (with `/tbfm trace`, `/tbfm fake` and `/tbfm status` for the trace and the offline demo) |
 
