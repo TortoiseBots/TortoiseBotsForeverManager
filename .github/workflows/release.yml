@@ -7,11 +7,13 @@ on:
         type: choice
         description: 'Release increment type'
         options:
-          - 'port (Forever-only changes on the same TBM base: X.Y.Z-forever.N+1)'
-          - 'custom (new TBM base, specify version below, e.g. 2.5.0-forever.1)'
-        default: 'port (Forever-only changes on the same TBM base: X.Y.Z-forever.N+1)'
+          - 'patch (bug fixes, tidy up, small tweaks: 0.0.X)'
+          - 'minor (new features, new panels: 0.X.0)'
+          - 'major (breaking changes: X.0.0)'
+          - 'custom (specify custom version below)'
+        default: 'patch (bug fixes, tidy up, small tweaks: 0.0.X)'
       custom_version:
-        description: 'Custom version (used if custom selected, X.Y.Z-forever.N)'
+        description: 'Custom version (used if custom selected, e.g. 3.0.0)'
         required: false
         default: ''
 
@@ -39,8 +41,6 @@ jobs:
           lua5.1 tests/lint.lua .
           sh tests/ui_smoke.sh .
 
-      # The .toc carries the full X.Y.Z-forever.N version; TB.C.VERSION in
-      # Constants.lua stays the TBM base X.Y.Z for the update check.
       - name: Compute version
         id: version
         env:
@@ -50,30 +50,33 @@ jobs:
           python3 - << 'EOF'
           import os, re
 
-          pattern = r"(\d+\.\d+\.\d+)-forever\.(\d+)"
           toc = "TortoiseBotsForeverManager.toc"
           text = open(toc, encoding="utf-8").read()
-          current = re.search(r"(?m)^## Version:\s*" + pattern + r"\s*$", text)
+          current = re.search(r"(?m)^## Version:\s*(\d+)\.(\d+)\.(\d+)", text)
           if not current:
-              raise SystemExit(f"no X.Y.Z-forever.N '## Version:' line in {toc}")
-          base, n = current.group(1), int(current.group(2))
+              raise SystemExit(f"no X.Y.Z '## Version:' line in {toc}")
+          maj, min_, pat = map(int, current.groups())
 
-          if os.environ["BUMP"].startswith("custom"):
-              custom = os.environ.get("CUSTOM_VER", "").strip().lstrip("v")
-              m = re.fullmatch(pattern, custom)
-              if not m:
-                  raise SystemExit(f"custom version must be X.Y.Z-forever.N, got '{custom}'")
-              base, target = m.group(1), custom
+          bump = os.environ["BUMP"]
+          custom = os.environ.get("CUSTOM_VER", "").strip().lstrip("v")
+          if bump.startswith("custom"):
+              if not re.fullmatch(r"\d+\.\d+\.\d+", custom):
+                  raise SystemExit(f"custom version must be X.Y.Z, got '{custom}'")
+              target = custom
+          elif bump.startswith("major"):
+              target = f"{maj + 1}.0.0"
+          elif bump.startswith("minor"):
+              target = f"{maj}.{min_ + 1}.0"
           else:
-              target = f"{base}-forever.{n + 1}"
+              target = f"{maj}.{min_}.{pat + 1}"
 
-          print(f"Release version: {target} (was {current.group(1)}-forever.{n})")
+          print(f"Release version: {target} (was {maj}.{min_}.{pat})")
           text = re.sub(r"(?m)^## Version:.*$", f"## Version: {target}", text)
           open(toc, "w", encoding="utf-8").write(text)
 
           path = "Constants.lua"
           consts = open(path, encoding="utf-8").read()
-          consts = re.sub(r'TB\.C\.VERSION\s*=\s*"[^"]*"', f'TB.C.VERSION = "{base}"', consts)
+          consts = re.sub(r'TB\.C\.VERSION\s*=\s*"[^"]*"', f'TB.C.VERSION = "{target}"', consts)
           open(path, "w", encoding="utf-8").write(consts)
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
