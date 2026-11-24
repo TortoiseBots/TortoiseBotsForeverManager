@@ -321,6 +321,15 @@ function TB.CanSend()
     return (now - (lastSend or 0)) >= delay
 end
 
+-- The 1.60 client blocks SendChatMessage from addon code in combat/BGs; calling
+-- it from the throttle queue taints the UI and prints ADDON_ACTION_BLOCKED
+-- UNKNOWN(). The addon channel is safe; the chat/native fallback waits.
+function TB.ChatBlocked()
+    if InCombatLockdown and InCombatLockdown() then return true end
+    if UnitAffectingCombat and UnitAffectingCombat("player") then return true end
+    return false
+end
+
 local queueFrame -- lazy
 
 local function ensureQueueFrame()
@@ -329,12 +338,22 @@ local function ensureQueueFrame()
     queueFrame:SetScript("OnUpdate", function(self, elapsed)
         if #sendQueue == 0 then return end
         if not TB.CanSend() then return end
+        if not (TB.AddonCommandChannel and TB.AddonCommandChannel()) and TB.ChatBlocked() then return end
         local item = table.remove(sendQueue, 1)
         if item and item.cmd then
             TB.SendBotCommand(item.cmd, item.opts or { queued = true })
         end
     end)
 end
+
+local function queueSend(cmd, opts)
+    table.insert(sendQueue, {
+        cmd = cmd, opts = opts, at = (GetTime and GetTime()) or 0,
+    })
+    if TB.OnCommandQueued then TB.OnCommandQueued(cmd) end
+    ensureQueueFrame()
+end
+
 function TB.TracePrint(text)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cff9aa0a6TBM " .. text .. "|r") end
 end
@@ -367,13 +386,20 @@ function TB.SendBotCommand(cmd, opts)
     local channel = TB.AddonCommandChannel and TB.AddonCommandChannel()
     if TB.trace then TB.TracePrint("> " .. cmd .. "   [" .. (channel or "chat") .. (TB.CanSend() and "" or ", queued") .. "]") end
     if TB.CanSend() then
-        lastSend = (GetTime and GetTime()) or 0
         if TB.fake and TB.fake.enabled and TB.FakeServerSend then
             -- Offline test mode: answer locally, nothing leaves the client.
+            lastSend = (GetTime and GetTime()) or 0
             TB.FakeServerSend(cmd)
         elseif channel then
+            lastSend = (GetTime and GetTime()) or 0
             TB.SendAddonMessageCompat((C and C.ADDON_PREFIX) or "TBM", cmd, channel)
         else
+            if TB.ChatBlocked() then
+                queueSend(cmd, opts)
+                if TB.SetStatus then TB.SetStatus("Chat transport is blocked in combat; queued.", "pending") end
+                return false
+            end
+            lastSend = (GetTime and GetTime()) or 0
             local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
             local player = UnitName and UnitName("player") or nil
             local ok = send and player and pcall(send, full, "WHISPER", nil, player)
@@ -394,11 +420,7 @@ function TB.SendBotCommand(cmd, opts)
         end
         return true
     else
-        table.insert(sendQueue, {
-            cmd = cmd, opts = opts, at = (GetTime and GetTime()) or 0,
-        })
-        if TB.OnCommandQueued then TB.OnCommandQueued(cmd) end
-        ensureQueueFrame()
+        queueSend(cmd, opts)
         return false
     end
 end

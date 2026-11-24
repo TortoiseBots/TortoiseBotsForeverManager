@@ -1422,6 +1422,10 @@ end
 function TB.ReleaseClaimedBot(name)
     name = normalize(name)
     if not name then return end
+    if InCombatLockdown and InCombatLockdown() then
+        if TB.SetStatus then TB.SetStatus("Guild actions are blocked in combat; try after combat.", "warn") end
+        return
+    end
     if GuildUninvite then
         GuildUninvite(name)
     elseif SlashCmdList and SlashCmdList["GUILD_UNINVITE"] then
