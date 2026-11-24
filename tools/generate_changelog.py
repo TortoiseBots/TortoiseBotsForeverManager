@@ -2,7 +2,7 @@
 """
 tools/generate_changelog.py
 
-Automated changelog generator for TortoiseBotsManager.
+Automated changelog generator for TortoiseBotsForeverManager.
 Pulls merged PRs from GitHub since the last tag or CHANGELOG entry,
 uses an OpenCode / OpenAI-compatible model (e.g. DeepSeek) to summarize them
 into human-readable gamer-friendly notes, and optionally updates CHANGELOG.md
@@ -61,7 +61,7 @@ def get_merged_prs_since(since_iso_date=None):
     """Retrieve merged pull requests using the gh CLI."""
     cmd = [
         "gh", "pr", "list",
-        "--repo", "Sagiroth/TortoiseBotsManager",
+        "--repo", "TortoiseBots/TortoiseBotsForeverManager",
         "--state", "merged",
         "--base", "main",
         "--limit", "100",
@@ -101,13 +101,13 @@ def generate_summary_with_ai(prs, api_key, base_url, model):
     pr_text = "\n\n".join(pr_summaries)
 
     system_prompt = (
-        "You are an assistant generating release notes and changelog entries for TortoiseBotsManager, "
-        "the in-game Vanilla 1.12 client-side addon for managing TortoiseWoW companion bots.\n"
+        "You are an assistant generating release notes and changelog entries for TortoiseBotsForeverManager, "
+        "the in-game addon for managing companion bots on ForeverCore servers.\n"
         "Your audience consists of players, group leaders, and guild members using the in-game UI.\n"
         "Rules:\n"
-        "1. Group changes into clear, logical categories (e.g., 'Roster & Lifecycle', 'Tactical & Actions', 'UI & Controls', 'Comms & Protocol'). Only include categories that have changes.\n"
+        "1. Group changes into clear, logical categories (e.g., 'Roster & Lifecycle', 'Tactical & Actions', 'UI & Controls', 'Forever Bridge & Protocol'). Only include categories that have changes.\n"
         "2. Write concise, punchy, pragmatic bullet points explaining the user experience or UI improvements.\n"
-        "3. Always reference the pull request as a markdown link like [#123](https://github.com/Sagiroth/TortoiseBotsManager/pull/123) at the end of each bullet point.\n"
+        "3. Always reference the pull request as a markdown link like [#123](https://github.com/TortoiseBots/TortoiseBotsForeverManager/pull/123) at the end of each bullet point.\n"
         "4. Do NOT output fluff, introductions, greetings, or sign-offs. Output ONLY the categorized markdown bullets starting with category headers (### Category).\n"
         "5. Keep the tone pragmatic and player/developer friendly."
     )
@@ -181,7 +181,7 @@ def update_or_prepend_changelog(date_str, summary_text):
         else:
             new_content = content.rstrip() + "\n\n" + header
     else:
-        new_content = f"# Changelog\n\nAll notable changes to TortoiseBotsManager are documented here.\n\n## {date_str}\n\n{summary_text}\n"
+        new_content = f"# Changelog\n\nAll notable changes to TortoiseBotsForeverManager are documented here.\n\n## {date_str}\n\n{summary_text}\n"
 
     with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
         f.write(new_content.strip() + "\n")
@@ -190,7 +190,7 @@ def update_or_prepend_changelog(date_str, summary_text):
 
 ADDON_FILES = {
     "constants": os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Constants.lua"),
-    "toc": os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "TortoiseBotsManager.toc"),
+    "toc": os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "TortoiseBotsForeverManager.toc"),
 }
 
 BOT_COMMIT_AUTHOR = "github-actions[bot]"
@@ -283,7 +283,7 @@ def write_addon_version(build_version):
 def release_exists_on_github(tag_name):
     try:
         res = subprocess.run(
-            ["gh", "release", "view", tag_name, "--repo", "Sagiroth/TortoiseBotsManager", "--json", "body"],
+            ["gh", "release", "view", tag_name, "--repo", "TortoiseBots/TortoiseBotsForeverManager", "--json", "body"],
             capture_output=True,
             text=True
         )
@@ -405,7 +405,7 @@ def main():
         with open(os.environ["GITHUB_OUTPUT"], "a") as gh_out:
             gh_out.write("has_changes=true\n")
             gh_out.write(f"release_tag={release_tag}\n")
-            gh_out.write(f"release_title=TortoiseBotsManager ({args.date})\n")
+            gh_out.write(f"release_title=TortoiseBotsForeverManager ({args.date})\n")
             gh_out.write(f"release_exists={'true' if exists else 'false'}\n")
 
 
