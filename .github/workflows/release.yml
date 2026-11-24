@@ -80,14 +80,16 @@ jobs:
               f.write(f"tag=v{target}\n")
           EOF
 
-      # Needs repo secrets OPENCODE_API_KEY, OPENCODE_ENDPOINT and OPENCODE_MODEL.
+      # Needs the secret OPENCODE_API_KEY and OPENCODE_ENDPOINT + OPENCODE_MODEL
+      # (variables or secrets); OPENCODE_REASONING_EFFORT (e.g. high) is optional.
       # Without the key the release falls back to GitHub's list of merged PRs.
       - name: Generate changelog with AI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          OPENCODE_ENDPOINT: ${{ secrets.OPENCODE_ENDPOINT }}
-          OPENCODE_MODEL: ${{ secrets.OPENCODE_MODEL }}
+          OPENCODE_ENDPOINT: ${{ vars.OPENCODE_ENDPOINT || secrets.OPENCODE_ENDPOINT }}
+          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL || secrets.OPENCODE_MODEL }}
+          OPENCODE_REASONING_EFFORT: ${{ vars.OPENCODE_REASONING_EFFORT || secrets.OPENCODE_REASONING_EFFORT }}
         run: |
           if [ -z "$OPENCODE_API_KEY" ]; then
             echo "No OPENCODE_API_KEY secret, skipping the AI changelog"; exit 0

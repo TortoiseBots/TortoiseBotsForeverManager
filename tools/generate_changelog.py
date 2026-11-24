@@ -122,6 +122,9 @@ def generate_summary_with_ai(prs, api_key, base_url, model):
         ],
         "temperature": 0.3
     }
+    effort = os.environ.get("OPENCODE_REASONING_EFFORT", "").strip()
+    if effort:
+        payload["reasoning_effort"] = effort
 
     if base_url.endswith("/chat/completions"):
         url = base_url
