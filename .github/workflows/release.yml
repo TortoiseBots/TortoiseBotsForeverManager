@@ -13,7 +13,7 @@ on:
           - 'custom (specify custom version below)'
         default: 'patch (bug fixes, tidy up, small tweaks: 0.0.X)'
       custom_version:
-        description: 'Custom version (used if custom selected, e.g. 3.0.0)'
+        description: 'Custom version (when filled in, used instead of the bump, e.g. 1.2.0)'
         required: false
         default: ''
 
@@ -59,7 +59,7 @@ jobs:
 
           bump = os.environ["BUMP"]
           custom = os.environ.get("CUSTOM_VER", "").strip().lstrip("v")
-          if bump.startswith("custom"):
+          if custom or bump.startswith("custom"):
               if not re.fullmatch(r"\d+\.\d+\.\d+", custom):
                   raise SystemExit(f"custom version must be X.Y.Z, got '{custom}'")
               target = custom
