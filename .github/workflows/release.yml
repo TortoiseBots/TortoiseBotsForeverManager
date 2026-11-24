@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        type: choice
+        description: 'Release increment type'
+        options:
+          - 'port (Forever-only changes on the same TBM base: X.Y.Z-forever.N+1)'
+          - 'custom (new TBM base, specify version below, e.g. 2.5.0-forever.1)'
+        default: 'port (Forever-only changes on the same TBM base: X.Y.Z-forever.N+1)'
+      custom_version:
+        description: 'Custom version (used if custom selected, X.Y.Z-forever.N)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.actor == 'Sagiroth' || github.actor == 'sagiroth'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Lua tests
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y lua5.1
+          lua5.1 tests/regression.lua .
+          lua5.1 tests/lint.lua .
+          sh tests/ui_smoke.sh .
+
+      # The .toc carries the full X.Y.Z-forever.N version; TB.C.VERSION in
+      # Constants.lua stays the TBM base X.Y.Z for the update check.
+      - name: Compute version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          CUSTOM_VER: ${{ inputs.custom_version }}
+        run: |
+          python3 - << 'EOF'
+          import os, re
+
+          pattern = r"(\d+\.\d+\.\d+)-forever\.(\d+)"
+          toc = "TortoiseBotsForeverManager.toc"
+          text = open(toc, encoding="utf-8").read()
+          current = re.search(r"(?m)^## Version:\s*" + pattern + r"\s*$", text)
+          if not current:
+              raise SystemExit(f"no X.Y.Z-forever.N '## Version:' line in {toc}")
+          base, n = current.group(1), int(current.group(2))
+
+          if os.environ["BUMP"].startswith("custom"):
+              custom = os.environ.get("CUSTOM_VER", "").strip().lstrip("v")
+              m = re.fullmatch(pattern, custom)
+              if not m:
+                  raise SystemExit(f"custom version must be X.Y.Z-forever.N, got '{custom}'")
+              base, target = m.group(1), custom
+          else:
+              target = f"{base}-forever.{n + 1}"
+
+          print(f"Release version: {target} (was {current.group(1)}-forever.{n})")
+          text = re.sub(r"(?m)^## Version:.*$", f"## Version: {target}", text)
+          open(toc, "w", encoding="utf-8").write(text)
+
+          path = "Constants.lua"
+          consts = open(path, encoding="utf-8").read()
+          consts = re.sub(r'TB\.C\.VERSION\s*=\s*"[^"]*"', f'TB.C.VERSION = "{base}"', consts)
+          open(path, "w", encoding="utf-8").write(consts)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"tag=v{target}\n")
+          EOF
+
+      - name: Commit version and tag
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists" >&2; exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add TortoiseBotsForeverManager.toc Constants.lua
+          git commit -m "release $TAG [skip ci]" || echo "Nothing to commit"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Package addon zip
+        run: |
+          git archive --format=zip --prefix=TortoiseBotsForeverManager/ -o /tmp/TortoiseBotsForeverManager.zip HEAD -- . \
+            ':!tests' ':!tools' ':!docs' ':!.github' ':!.gitignore' ':!.luacheckrc'
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release create "$TAG" /tmp/TortoiseBotsForeverManager.zip \
+            --repo "${{ github.repository }}" \
+            --title "TortoiseBotsForeverManager $TAG" \
+            --generate-notes \
+            --latest
