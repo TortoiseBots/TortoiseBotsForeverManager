@@ -174,7 +174,7 @@ The API choices were checked against addons that already run on this client.
   (servers with `AiPlayerbot.HireAnywhere = 0` hide it and keep hiring at a `<Mercenary Hire>` recruiter). Every
   `TBM:CAPS` line is re-checked, so a restart that drops the feature hides the tab again.
 - **Choices:** class (your faction's hireable classes), race (your faction's races that can be that class), gender,
-  the recruiter's per-class spec list (`runtime/HireSpecPolicy.h`), gear tier 0..7 at level 60 (Standard below) and
+  the recruiter's per-class spec list (`runtime/HireSpecPolicy.h`), gear tier 0..6 at level 60 (Standard below) and
   a level stepper that starts at your own level.
 - **Wire:** `hire <class> <race> <male|female> <spec> t<tier> level=<n>` over the native `hire` verb.
   `TBM:ACTION_ACK|hire|bot:<Name>|1|tier <n>, fee <copper> copper` fills the fee line; refusals
