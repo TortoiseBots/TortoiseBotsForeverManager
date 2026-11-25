@@ -14,7 +14,7 @@
 --   * race: the faction's races that can be that class;
 --   * spec: the recruiter menu's per-class build list, which also picks the
 --     role (see runtime/HireSpecPolicy.h on the server);
---   * tier 0 is the levelled kit; tiers 1..7 are gear kits, unlocked per
+--   * tier 0 is the levelled kit; tiers 1..6 are gear kits, unlocked per
 --     character at level 60. The server refuses a locked tier with
 --     `TBM:ACTION_ERR|hire|tier-locked|<highest available>`;
 --   * level defaults to the player's own level and the server clamps it to
@@ -142,7 +142,6 @@ local TIERS = {
     { value = 4, name = "Blackwing Lair" },
     { value = 5, name = "Ahn'Qiraj" },
     { value = 6, name = "Naxxramas" },
-    { value = 7, name = "Karazhan" },
 }
 
 local state = { classId = nil, raceId = nil, gender = 0, spec = 1, tier = 0, level = nil }

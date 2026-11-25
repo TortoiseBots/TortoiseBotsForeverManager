@@ -3257,8 +3257,8 @@ do
     assert(not TB.SetHireChoice("tier", 3), "a gear tier is refused below level 60")
     assert(TB.SetHireChoice("level", 60), "level 60 is accepted")
     local tiers = hireMenu("tier")
-    assert(table.getn(tiers) == 8 and tiers[4].text == "Molten Core",
-        "level 60 offers Standard plus tiers 1..7")
+    assert(table.getn(tiers) == 7 and tiers[4].text == "Molten Core",
+        "level 60 offers Standard plus tiers 1..6")
     assert(TB.SetHireChoice("tier", 3), "Molten Core is selectable")
     assert(string.find(TB.hireFrame.summary:GetText(), "Molten Core kit", 1, true),
         "the summary names the chosen kit")
