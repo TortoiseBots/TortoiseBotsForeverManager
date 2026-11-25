@@ -2800,6 +2800,20 @@ local cases = {
             TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior")
         end,
     },
+    {
+        id = "hire.mage",
+        expected = { ".bot hire mage gnome female frost t3 level=60" },
+        trigger = function()
+            TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,hiring,hire-anywhere")
+            advanceTime(10)
+            assert(TB.SetHireChoice("class", 8) and TB.SetHireChoice("race", 7)
+                and TB.SetHireChoice("gender", 1) and TB.SetHireChoice("spec", 1)
+                and TB.SetHireChoice("tier", 3) and TB.SetHireChoice("level", 60), "hire choices set")
+            this = TB.hireFrame.hireBtn
+            TB.hireFrame.hireBtn.scripts.OnClick(TB.hireFrame.hireBtn)
+            TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster")
+        end,
+    },
 }
 
 for _, tc in ipairs(cases) do

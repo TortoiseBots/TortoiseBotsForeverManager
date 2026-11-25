@@ -566,6 +566,8 @@ function UnitLevel(u)
     if i and Mock.world.party[i] then return Mock.world.party[i].level or 60 end
     return 60
 end
+function UnitRace() return "Human", "Human" end
+function UnitSex() return 2 end
 function UnitIsPlayer(u)
     if u == "target" then return Mock.world.target and Mock.world.target.player and 1 or nil end
     return 1

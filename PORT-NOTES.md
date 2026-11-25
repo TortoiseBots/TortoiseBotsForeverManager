@@ -167,3 +167,22 @@ The API choices were checked against addons that already run on this client.
   - `professions` (CAPS `professions`): `BotPanel.lua` skill lines, known recipes, and missing recipes.
   - `lootlog` (CAPS `loot-log`): `BotLoot.lua` paged loot and roll history (and hides the Loot tab WIP banner).
 - Updated `FakeServer.lua` with `item`, `trade`, `inventory` in `FAKE_VERBS`; `behavior`, `inventory`, `blessing-player`, `loot-log` in `FAKE_CAPS`; full 9-class `TBM:BLESSING` reply, 3-arg `behavior` parsing, `item`/`trade` ACKs, and canned `TBM:LOOT` rows.
+
+## Hire tab (`BotHire.lua`)
+
+- **Hidden, not grey, without the capability.** The tab exists only while `TBM:CAPS` carries `hire-anywhere`
+  (servers with `AiPlayerbot.HireAnywhere = 0` hide it and keep hiring at a `<Mercenary Hire>` recruiter). Every
+  `TBM:CAPS` line is re-checked, so a restart that drops the feature hides the tab again.
+- **Choices:** class (your faction's hireable classes), race (your faction's races that can be that class), gender,
+  the recruiter's per-class spec list (`runtime/HireSpecPolicy.h`), gear tier 0..7 at level 60 (Standard below) and
+  a level stepper that starts at your own level.
+- **Wire:** `hire <class> <race> <male|female> <spec> t<tier> level=<n>` over the native `hire` verb.
+  `TBM:ACTION_ACK|hire|bot:<Name>|1|tier <n>, fee <copper> copper` fills the fee line; refusals
+  (`recruiter-required`, `tier-locked`, `poor`, …) land in the status line like every other action.
+- **Fee and unlocked tiers are the server's:** the tab never computes gold and starts at Standard because the
+  unlocked gear maximum is character state the protocol does not send. The server refuses a locked tier with its
+  own message.
+- **No roster change:** hires stay out of `TBM:ROSTER` (the server filters them), so the Roster/Guild tabs are
+  untouched.
+- `FakeServer.lua` advertises `hiring`/`hire-anywhere` and answers `hire` with a canned ACK, and the preview has a
+  `hire` scene.

@@ -45,6 +45,15 @@ assert(TB.SendBotCommand("behavior Alpha"), "the fake server answers a behaviour
 local st = TB.GetBotState("Alpha")
 assert(st and st.move == "follow", "the fake bot state is committed")
 
+assert(TB.HasServerCapability("hire-anywhere"), "the fake server allows hiring anywhere")
+assert(TB.tabHire and TB.tabHire:IsVisible(), "the fake hire-anywhere shows the Hire tab")
+advanceTime(5)
+local hireChat = table.getn(sent)
+assert(TB.SendHire() == true, "the fake server accepts a hire")
+assert(table.getn(sent) == hireChat, "fake hire must not put a .bot line in chat")
+assert(string.find(TB.hireFrame.feeText:GetText(), "Fee paid", 1, true),
+    "the fake hire ACK carries a fee")
+
 TB.SetFakeServer(false)
 advanceTime(5)
 local addonBefore = table.getn(addonSent)

@@ -25,6 +25,7 @@ Once the server advertises its native verbs (`TBM:VERBS`) and capabilities (`TBM
 | :--- | :--- |
 | Fight tab | Attack, Pull, Pullback, Focus (your target), End pull, Follow, Stay, Come, Free, Use (your target), Spread / party switches (when `behavior` is advertised) |
 | Party tab | Bot role (tank, healer, DPS), Summon, Kick, Log out, Blessings board & per-player exceptions (`blessing`, `blessing-player`) |
+| Hire tab | Class, race (your faction), gender, recruiter spec, gear tier and level, then Hire (only while the server advertises `hire-anywhere`; without it the tab is hidden and hiring stays at the recruiter) |
 | Bot panel | Gear & Bags (`inv`, `item equip`/`unequip`/`give`/`trade`), Behaviour toggles (`behavior`), Shaman totems (`totem`), Class choices (`choice`: aura/aspect/sting/curse/pet/poisons), Mage/Warlock services & portals (`service`), Professions & recipes (`professions`), Auto-gear, Upkeep, Craft orders |
 | Loot tab | Loot & roll history (`lootlog` / `loot-log`) |
 | Guild & Orders | Guild orders (Farm, Buy, Craft, Cancel, Active orders list; search/enchants/meet/rank stay grey) |

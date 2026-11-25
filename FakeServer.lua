@@ -21,8 +21,8 @@ local PREFIX = (C and C.ADDON_PREFIX) or "TBM"
 local BOTS = { "Alpha", "Bravo" }
 local GUIDS = { Alpha = "101", Bravo = "102" }
 local CLASS_IDS = { Alpha = "1", Bravo = "5" }   -- warrior, priest
-local FAKE_VERBS = "roster,list,alts,behavior,inv,inventory,item,trade,professions,service,totem,choice,blessing,order,lootlog,loot,action,add,remove,logout,invite,uninvite,summon,role,autogear,maintenance,command,run,strategy,formation,downtime,features,help"
-local FAKE_CAPS = "order,order-steps,guild-order-steps,professions,blessing,blessing-player,choice,service,totem,behavior,inventory,loot-log,guild-bots,altsummary,run"
+local FAKE_VERBS = "roster,list,alts,behavior,inv,inventory,item,trade,professions,service,totem,choice,blessing,order,lootlog,loot,action,add,remove,logout,invite,uninvite,summon,role,autogear,maintenance,command,run,strategy,formation,downtime,features,help,hire"
+local FAKE_CAPS = "order,order-steps,guild-order-steps,professions,blessing,blessing-player,choice,service,totem,behavior,inventory,loot-log,guild-bots,altsummary,run,hiring,hire-anywhere"
 
 local function emit(line)
     if TB.trace and TB.TracePrint then TB.TracePrint("< " .. line .. "   [fake]") end
@@ -212,6 +212,12 @@ function TB.FakeServerSend(cmd)
         emit("TBM:LOOT_BEGIN|1|")
         emit("TBM:LOOT|2026-11-22 20:00:00|" .. BOTS[1] .. "|StoreLootAction|2589|Linen Cloth|corpse|Defias Thug|1")
         emit("TBM:LOOT_END|")
+        return true
+    end
+    if verb == "hire" then
+        local tier = tonumber(string.match(rest, "t(%d)")) or 0
+        local level = tonumber(string.match(rest, "level=(%d+)")) or 60
+        emit("TBM:ACTION_ACK|hire|bot:Recruit|1|tier " .. tier .. ", fee 20000 copper, level " .. level)
         return true
     end
     -- Actions, movement, lifecycle, run and everything else: confirm the intent
