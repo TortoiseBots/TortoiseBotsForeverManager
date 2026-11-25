@@ -542,6 +542,51 @@ return function()
             else
                 bad("Tabs: Loot tab missing")
             end
+            -- Hire tab: with hire-anywhere too (every non-raid tab) the Log tab still fits.
+            if TB.tabHire then
+                TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,dungeon-run,loot-log,hiring,hire-anywhere")
+                local lr = frameRect(TB.tabLog, cache)
+                local mr = frameRect(TB.frame, cache)
+                if lr.right > mr.right then
+                    bad(string.format("Tabs: with Hire, Log tab %s escapes the main window %s", fmt(lr), fmt(mr)))
+                end
+                TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster")
+            else
+                bad("Tabs: Hire tab missing")
+            end
+        end
+    end
+
+    -- ── Hire tab ─────────────────────────────────────────────────────
+    do
+        local cache = {}
+        local frame = TB.hireFrame
+        if not frame then
+            bad("Hire: frame missing")
+        else
+            TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,hiring,hire-anywhere")
+            TB.ShowTab("hire")
+            local fr = frameRect(frame, cache)
+            local card = frame.classBtn and frame.classBtn.parent
+            local cardRect = card and frameRect(card, cache)
+            local buttons = {
+                { "class", frame.classBtn }, { "race", frame.raceBtn }, { "gender", frame.genderBtn },
+                { "spec", frame.specBtn }, { "tier", frame.tierBtn }, { "hire", frame.hireBtn },
+            }
+            if cardRect then
+                childrenInside("Hire card", card, cardRect, buttons, cache, 3)
+                childrenInside("Hire card", card, cardRect, { { "level", frame.levelStep }, { "fee", frame.feeText } }, cache, 3)
+                noOverlaps("Hire card", buttons, cache)
+            else
+                bad("Hire: card missing")
+            end
+            for _, entry in ipairs(buttons) do
+                if entry[2] then labelFits("Hire " .. entry[1], entry[2]) end
+            end
+            childrenInside("Hire page", frame, fr, {
+                { "hint", frame.hint }, { "summary", frame.summary }, { "note", frame.note },
+            }, cache, 4)
+            TB.ShowTab("actions")
         end
     end
 

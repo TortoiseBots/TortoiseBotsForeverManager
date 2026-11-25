@@ -263,6 +263,7 @@ for _, file in ipairs({
     "BotVault.lua",
     "BotRun.lua",
     "BotLoot.lua",
+    "BotHire.lua",
     "BotOrder.lua",
     "ActiveOrders.lua",
     "ServerInfo.lua",
@@ -3181,6 +3182,117 @@ assert(TB.lootFrame.emptyMsg:IsVisible(), "Clear shows the empty message")
 TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster")
 assert(not TB.tabLoot:IsVisible(), "losing the cap hides the Loot tab")
 assert(TB.RequestLootPage() == false, "losing the cap stops the sends")
+
+-- ── Hire tab: only for servers that allow hiring anywhere ──────────────────
+do
+    assert(TB.tabHire and TB.hireFrame, "the Hire tab is built")
+    assert(not TB.tabHire:IsVisible(), "no Hire tab without hire-anywhere")
+    assert(TB.SendHire() == false, "nothing is hired without the capability")
+
+    TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,hiring,hire-anywhere")
+    assert(TB.tabHire:IsVisible(), "hire-anywhere shows the Hire tab")
+    now = now + 1
+    this = TB.tabHire
+    TB.tabHire.scripts.OnClick(TB.tabHire)
+    assert(TB.hireFrame:IsVisible(), "the Hire tab shows its page")
+
+    -- Defaults: the player's own class, race, gender and level.
+    assert(TB.GetHireChoice("class") == 1, "the player's class is the default hire class")
+    assert(TB.GetHireChoice("race") == 1, "the player's race is the default hire race")
+    assert(TB.GetHireChoice("gender") == 0, "male is the default gender")
+    assert(TB.GetHireChoice("level") == 60, "the default level is the player's level")
+    assert(TB.GetHireChoice("tier") == 0, "Standard is the default tier")
+    assert(TB.GetHireChoice("spec") == 1, "the first recruiter build is the default spec")
+
+    local function hireMenu(kind)
+        local rows = {}
+        local count = TB.BuildHireMenu(kind, function(info) table.insert(rows, info) end)
+        assert(count == table.getn(rows), kind .. " menu count matches its rows")
+        return rows
+    end
+
+    local classes = hireMenu("class")
+    assert(table.getn(classes) == 8, "Alliance offers its eight hireable classes, got " .. table.getn(classes))
+    for _, row in ipairs(classes) do
+        assert(row.text ~= "Shaman", "Alliance is not offered Shaman")
+    end
+
+    assert(TB.SetHireChoice("class", 2), "a paladin is hireable by the Alliance")
+    local paladinRaces = hireMenu("race")
+    local paladinRaceText = {}
+    for _, row in ipairs(paladinRaces) do paladinRaceText[row.text] = true end
+    assert(paladinRaceText.Human and paladinRaceText.Dwarf, "paladin races include Human and Dwarf")
+    assert(not paladinRaceText.Gnome and not paladinRaceText["Night Elf"],
+        "paladin races exclude Gnome and Night Elf")
+    assert(not TB.SetHireChoice("race", 7), "a Gnome paladin is refused")
+
+    local savedFaction = UnitFactionGroup
+    UnitFactionGroup = function() return "Horde" end
+    assert(not TB.SetHireChoice("class", 2), "the Horde cannot hire a paladin")
+    assert(TB.SetHireChoice("class", 7), "the Horde can hire a shaman")
+    local hordeRaces = hireMenu("race")
+    local hordeRaceText = {}
+    for _, row in ipairs(hordeRaces) do hordeRaceText[row.text] = true end
+    assert(hordeRaceText.Orc and hordeRaceText.Tauren and hordeRaceText.Troll,
+        "shaman races are the Horde's")
+    assert(not hordeRaceText.Human and not hordeRaceText.Dwarf, "no Alliance race is offered to the Horde")
+    UnitFactionGroup = savedFaction
+
+    assert(TB.SetHireChoice("class", 8), "a mage is hireable again")
+    local specs = hireMenu("spec")
+    assert(table.getn(specs) == 3 and specs[1].text == "Frost (DPS)",
+        "the mage spec menu is the recruiter's frost/fire/arcane list")
+    assert(TB.SetHireChoice("class", 11), "a druid is hireable")
+    local druidSpecs = hireMenu("spec")
+    assert(table.getn(druidSpecs) == 4 and druidSpecs[1].text == "Feral Bear (Tank)"
+        and druidSpecs[4].text == "Feral Cat (DPS)", "the druid menu keeps the four recruiter rows")
+
+    -- Gear tiers matter at level 60; below it the tab keeps the Standard kit.
+    assert(TB.SetHireChoice("class", 8), "back to a mage")
+    assert(TB.SetHireChoice("level", 30), "a lower level is accepted")
+    assert(TB.GetHireChoice("tier") == 0, "a lower level resets the tier to Standard")
+    local lowTiers = hireMenu("tier")
+    assert(table.getn(lowTiers) == 1 and lowTiers[1].text == "Standard",
+        "below level 60 only the Standard kit is offered")
+    assert(not TB.SetHireChoice("tier", 3), "a gear tier is refused below level 60")
+    assert(TB.SetHireChoice("level", 60), "level 60 is accepted")
+    local tiers = hireMenu("tier")
+    assert(table.getn(tiers) == 7 and tiers[4].text == "Molten Core",
+        "level 60 offers Standard plus tiers 1..6")
+    assert(TB.SetHireChoice("tier", 3), "Molten Core is selectable")
+    assert(string.find(TB.hireFrame.summary:GetText(), "Molten Core kit", 1, true),
+        "the summary names the chosen kit")
+
+    -- The wire: class, race, gender, the recruiter's spec word, tier and level.
+    assert(TB.SetHireChoice("class", 8) and TB.SetHireChoice("race", 7)
+        and TB.SetHireChoice("gender", 1) and TB.SetHireChoice("spec", 1)
+        and TB.SetHireChoice("tier", 3) and TB.SetHireChoice("level", 60), "the whole selection is set")
+    assert(TB.GetHireCommand() == "hire mage gnome female frost t3 level=60",
+        "the hire payload, got " .. tostring(TB.GetHireCommand()))
+    now = now + 5
+    TB.SetAddonTransport("party")
+    assert(TB.SendHire() == true, "the Hire button sends")
+    assert(lastAddon() == "hire mage gnome female frost t3 level=60",
+        "the hire command goes out byte-exact, got " .. tostring(lastAddon()))
+
+    TB.OnSystemMessage("TBM:ACTION_ACK|hire|bot:Recruit|1|tier 3, fee 20000 copper")
+    assert(string.find(TB.hireFrame.feeText:GetText(), "2g", 1, true)
+        and string.find(TB.hireFrame.feeText:GetText(), "(tier 3)", 1, true),
+        "the ACK reports the fee and tier, got " .. tostring(TB.hireFrame.feeText:GetText()))
+    assert(string.find(TB.statusText:GetText(), "Hire accepted", 1, true)
+        and string.find(TB.statusText:GetText(), "bot:Recruit", 1, true),
+        "the ACK lands in the status line like any action")
+
+    TB.OnSystemMessage("TBM:ACTION_ERR|hire|tier-locked|That equipment is not unlocked yet. Your highest available tier is Molten Core kit (tier 3).")
+    assert(string.find(TB.statusText:GetText(), "Hire: tier-locked", 1, true),
+        "the refusal lands in the status line")
+    assert(TB.hireFrame.feeText:GetText() == "Fee: not charged.", "a refusal says nothing was charged")
+
+    -- Losing the capability hides the tab (not a grey tab).
+    TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster")
+    assert(not TB.tabHire:IsVisible(), "losing hire-anywhere hides the Hire tab")
+    assert(TB.SendHire() == false, "losing the cap stops the sends")
+end
 
 -- ── Guild orders (TBM#51): capability gate, permission, parsers ────────────
 TB.OnSystemMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster")

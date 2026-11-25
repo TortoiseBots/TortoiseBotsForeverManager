@@ -1765,18 +1765,20 @@ function TB.InitUI()
     end
 
     -- Tabs by kind of work: Fight (in a pull), Camp (between pulls), Party
-    -- (who does what), Roster (who is logged in), Guild (claimed bots), Raid (raid only),
+    -- (who does what), Hire (only while the server allows hiring anywhere),
+    -- Guild (claimed bots), Roster (who is logged in), Raid (raid only),
     -- Dungeon (only while the server runs the dungeon run leader), Loot (only
     -- while the server keeps loot history), Log.
     local tabActions = makeTab("Fight", 0)
     local tabCamp = makeTab("Camp", 80)
     local tabParty = makeTab("Party", 160)
-    local tabGuild = makeTab("Guild", 240)
-    local tabRoster = makeTab("Roster", 320)
-    local tabRaid = makeTab("Raid", 400)
-    local tabDungeon = makeTab("Dungeon", 480)
-    local tabLoot = makeTab("Loot", 560)
-    local tabLog = makeTab("Log", 640)
+    local tabHire = makeTab("Hire", 240)
+    local tabGuild = makeTab("Guild", 320)
+    local tabRoster = makeTab("Roster", 400)
+    local tabRaid = makeTab("Raid", 480)
+    local tabDungeon = makeTab("Dungeon", 560)
+    local tabLoot = makeTab("Loot", 640)
+    local tabLog = makeTab("Log", 720)
     local content = CreateFrame("Frame", nil, main, BackdropTemplateMixin and "BackdropTemplate" or nil)
     content:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, -4)
     content:SetWidth(W - (C.PAD or 10) * 2)
@@ -2695,6 +2697,7 @@ end
     local logFrame = CreateLogView(content)
     local dungeonFrame = TB.CreateRunTab(content)
     local lootFrame = TB.CreateLootTab and TB.CreateLootTab(content) or nil
+    local hireFrame = TB.CreateHireTab and TB.CreateHireTab(content) or nil
 
     function TB.RefreshLogView()
         if not TB.logScroll or not TB.logRows then return end
@@ -3137,6 +3140,7 @@ end
         { name = "actions", tab = tabActions, frame = actionsFrame },
         { name = "camp",    tab = tabCamp,    frame = campFrame },
         { name = "party",   tab = tabParty,   frame = partyFrame },
+        { name = "hire",    tab = tabHire,    frame = hireFrame },
         { name = "guild",   tab = tabGuild,   frame = guildFrame },
         { name = "roster",  tab = tabRoster,  frame = rosterFrame },
         { name = "raid",    tab = tabRaid,    frame = raidFrame },
@@ -3153,10 +3157,13 @@ end
         if name == "raid" then return inRaid() end
         if name == "dungeon" then return serverHasCap("dungeon-run") end
         if name == "loot" then return serverHasCap("loot-log") end
+        -- Hiring is normally a recruiter in an inn. The Hire tab exists only
+        -- while the server says it also allows hiring from anywhere.
+        if name == "hire" then return serverHasCap("hire-anywhere") end
         return true
     end
 
-    -- Responsive tab bar layout: adjusts width and stride to fit 6 to 9 tabs.
+    -- Responsive tab bar layout: adjusts width and stride to fit 6 to 10 tabs.
     local function layoutTabs()
         local visibleCount = 0
         for _, t in ipairs(tabs) do
@@ -3218,6 +3225,8 @@ end
             if TB.RequestOrderList then TB.RequestOrderList() end
         elseif name == "party" then
             if TB.RefreshPartyView then TB.RefreshPartyView() end
+        elseif name == "hire" then
+            if TB.RefreshHireTab then TB.RefreshHireTab() end
         elseif name == "log" then
             if TB.RefreshLogView then TB.RefreshLogView() end
         elseif name == "loot" then
@@ -3240,8 +3249,8 @@ end
     end
 
     -- Joining or leaving a raid adds or removes the Raid tab; the server's
-    -- dungeon-run and loot-log capabilities do the same for the Dungeon and
-    -- Loot tabs.
+    -- dungeon-run, loot-log and hire-anywhere capabilities do the same for
+    -- the Dungeon, Loot and Hire tabs.
     TB.UpdateRaidTab = function()
         local current = TortoiseBotsDB and TortoiseBotsDB.activeTab
         if current and not tabShown(current) then
@@ -3255,6 +3264,7 @@ end
     TB.tabActions, TB.tabParty, TB.tabRoster, TB.tabLog = tabActions, tabParty, tabRoster, tabLog
     TB.tabDungeon, TB.dungeonFrame = tabDungeon, dungeonFrame
     TB.tabLoot, TB.lootFrame = tabLoot, lootFrame
+    TB.tabHire, TB.hireFrame = tabHire, hireFrame
     TB.tabGuild, TB.guildFrame = tabGuild, guildFrame
     TB.tabRaid, TB.raidFrame = tabRaid, raidFrame
     TB.tabCamp = tabCamp

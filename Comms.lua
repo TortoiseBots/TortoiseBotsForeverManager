@@ -185,6 +185,7 @@ end
 local function actionLabel(intent)
     local def = TB.GetActionDefinition and TB.GetActionDefinition(intent)
     if def and def.label then return def.label end
+    if intent == "hire" then return "Hire" end
     if intent == "strategy +grind" or intent == "strategy -grind" then return "Grind" end
     if intent == "totem drop" then
         if C.ACTION_LABELS and C.ACTION_LABELS["totem party drop"] then return C.ACTION_LABELS["totem party drop"] end
@@ -305,6 +306,8 @@ function TB.ParseActionMessage(msg)
         -- Dungeon run: clears the model on the "no run" status ACK; the
         -- generic text below still reports every run ACK/ERR.
         if TB.OnRunAck then TB.OnRunAck(packet) end
+        -- Hire: the ACK detail carries the tier and fee the server charged.
+        if TB.OnHireReply then TB.OnHireReply(packet, true) end
         local scope = packet.scope == "party" and "party" or packet.scope
         local text = actionLabel(packet.intent) .. " accepted · " .. scope .. " · " .. packet.count
         if packet.executor ~= "-" then text = text .. " (" .. packet.executor .. ")" end
@@ -332,6 +335,7 @@ function TB.ParseActionMessage(msg)
         if TB.OnBotPanelError then TB.OnBotPanelError(packet) end
         if TB.OnBlessingError then TB.OnBlessingError(packet) end
         if TB.OnRunError then TB.OnRunError(packet) end
+        if TB.OnHireReply then TB.OnHireReply(packet, false) end
         if TB.OnOrderError then TB.OnOrderError(packet) end
         if TB.OnLootError and TB.OnLootError(packet) then
             if TB.Refresh then TB.Refresh() end
@@ -931,6 +935,7 @@ function TB.OnSystemMessage(msg)
             -- (and its button, via Refresh) on every CAPS line.
             if TB.NoteRunCaps then TB.NoteRunCaps() end
             if TB.NoteLootCaps then TB.NoteLootCaps() end
+            if TB.NoteHireCaps then TB.NoteHireCaps() end
             if TB.NoteOrderCaps then TB.NoteOrderCaps() end
             if TB.NoteProfessionsCaps then TB.NoteProfessionsCaps() end
             if TB.NoteBlessingCaps then TB.NoteBlessingCaps() end

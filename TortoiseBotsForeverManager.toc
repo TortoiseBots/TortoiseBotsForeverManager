@@ -33,6 +33,7 @@ BotNpc.lua
 BotVault.lua
 BotRun.lua
 BotLoot.lua
+BotHire.lua
 BotOrder.lua
 ActiveOrders.lua
 Settings.lua

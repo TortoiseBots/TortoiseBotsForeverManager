@@ -59,8 +59,9 @@ Direction follows the player: **C→S** is the addon asking, **S→C** is the mo
 
 Capability tokens the addon gates on: `pull-seconds`, `engage`, `flee`, `inventory`, `claimed-roster`,
 `guild-orders`, `guild-order-nobuy`, `guild-order-steps`, `dungeon-run`, `loot-log`, `downtime`, `choice`,
-`focus-mark`, `blessing`, `blessing-player`, `professions`, `use-object` (`behavior` is advertised but not gated
-on). An unknown token is ignored. The first `TBM:CAPS` line also switches the bridge mode off.
+`focus-mark`, `blessing`, `blessing-player`, `professions`, `use-object`, `hiring`, `hire-anywhere` (`behavior`
+is advertised but not gated on). An unknown token is ignored. The first `TBM:CAPS` line also switches the bridge
+mode off.
 
 ## 4. Commands (C→S)
 
@@ -91,6 +92,7 @@ are listed with each command; `ACK`/`ERR` mean `TBM:ACTION_ACK|…` / `TBM:ACTIO
 | `blessing <scope> status` | `TBM:BLESSING|<bot>|warrior=…,paladin=…,druid=…,known=…` (one line per paladin) |
 | `choice <Bot> <kind> status` | `TBM:CHOICE|<bot>|<kind>=<value\|auto>,known=v+v` |
 | `service <Bot>` | `TBM:SERVICE|<bot>|<food>|<water>|<healthstone>|<portals>` |
+| `hire <class> [race] [male\|female] [role\|spec] [t0..t7] [level=<n>]` | `ACK hire|bot:<Name>|1|tier <n>, fee <copper> copper`, `ERR hire|<code>|<message>`; only while the server advertises `hire-anywhere` (the tab is hidden otherwise, and hiring stays at a recruiter) |
 | `repair`, `sell`, `learn`, `rest`, `ready`, `rebuff`, `release`, `downtime`, `autogear <Bot>`, `maintenance <Bot>` | `ACK`/`ERR` (buttons; same words as the server commands) |
 
 ### Bot panel
