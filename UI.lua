@@ -1768,7 +1768,8 @@ function TB.InitUI()
     -- (who does what), Hire (only while the server allows hiring anywhere),
     -- Guild (claimed bots), Armory (gear readiness, only while the server
     -- sends its snapshot), Roster (who is logged in), Raid (raid only),
-    -- Dungeon (only while the server runs the dungeon run leader), Loot (only
+    -- Dungeon (only while the server runs the dungeon run leader), Positions
+    -- (place, rally and fall back), Loot (only
     -- while the server keeps loot history), Log.
     local tabActions = makeTab("Fight", 0)
     local tabCamp = makeTab("Camp", 80)
@@ -1779,6 +1780,7 @@ function TB.InitUI()
     local tabRoster = makeTab("Roster", 400)
     local tabRaid = makeTab("Raid", 480)
     local tabDungeon = makeTab("Dungeon", 560)
+    local tabPositions = makeTab("Positions", 600)
     local tabLoot = makeTab("Loot", 640)
     local tabLog = makeTab("Log", 720)
     local content = CreateFrame("Frame", nil, main, BackdropTemplateMixin and "BackdropTemplate" or nil)
@@ -2699,6 +2701,7 @@ end
 
     local logFrame = CreateLogView(content)
     local dungeonFrame = TB.CreateRunTab(content)
+    local positionsFrame = TB.CreatePositionsTab and TB.CreatePositionsTab(content) or nil
     local lootFrame = TB.CreateLootTab and TB.CreateLootTab(content) or nil
     local hireFrame = TB.CreateHireTab and TB.CreateHireTab(content) or nil
 
@@ -3149,6 +3152,7 @@ end
         { name = "roster",  tab = tabRoster,  frame = rosterFrame },
         { name = "raid",    tab = tabRaid,    frame = raidFrame },
         { name = "dungeon", tab = tabDungeon, frame = dungeonFrame },
+        { name = "positions", tab = tabPositions, frame = positionsFrame },
         { name = "loot",    tab = tabLoot,    frame = lootFrame },
         { name = "log",     tab = tabLog,     frame = logFrame },
     }
@@ -3169,7 +3173,7 @@ end
         return true
     end
 
-    -- Responsive tab bar layout: adjusts width and stride to fit 6 to 11 tabs.
+    -- Responsive tab bar layout: adjusts width and stride to fit 6 to 12 tabs.
     local function layoutTabs()
         local visibleCount = 0
         for _, t in ipairs(tabs) do
@@ -3244,6 +3248,8 @@ end
             if TB.RefreshRaidView then TB.RefreshRaidView() end
         elseif name == "dungeon" then
             if TB.RefreshRunTab then TB.RefreshRunTab() end
+        elseif name == "positions" then
+            if TB.RefreshPositionsTab then TB.RefreshPositionsTab() end
         else
             TB.Refresh()
         end
@@ -3272,6 +3278,7 @@ end
     TB.ShowTab = showTab
     TB.tabActions, TB.tabParty, TB.tabRoster, TB.tabLog = tabActions, tabParty, tabRoster, tabLog
     TB.tabDungeon, TB.dungeonFrame = tabDungeon, dungeonFrame
+    TB.tabPositions, TB.positionsFrame = tabPositions, positionsFrame
     TB.tabLoot, TB.lootFrame = tabLoot, lootFrame
     TB.tabHire, TB.hireFrame = tabHire, hireFrame
     TB.tabGuild, TB.guildFrame = tabGuild, guildFrame

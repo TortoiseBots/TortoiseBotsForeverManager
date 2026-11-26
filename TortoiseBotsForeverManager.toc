@@ -33,6 +33,7 @@ BotFocus.lua
 BotNpc.lua
 BotVault.lua
 BotRun.lua
+BotPositions.lua
 BotLoot.lua
 BotHire.lua
 BotOrder.lua
