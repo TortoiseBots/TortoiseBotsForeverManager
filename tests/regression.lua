@@ -263,6 +263,7 @@ for _, file in ipairs({
     "BotNpc.lua",
     "BotVault.lua",
     "BotRun.lua",
+    "BotPositions.lua",
     "BotLoot.lua",
     "BotHire.lua",
     "BotOrder.lua",
@@ -6181,6 +6182,8 @@ assert(sent[table.getn(sent)] == ".bot combat-test", "queued chat command must s
 TB.Forever = pubForever
 InCombatLockdown = nil
 TB.SetAddonTransport("party")
+
+dofile(root .. "/tests/positions_tests.lua")()
 
 print("PASS: TortoiseBotsManager regression checks")
 

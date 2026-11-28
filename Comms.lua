@@ -892,6 +892,13 @@ end
 
 function TB.OnSystemMessage(msg)
     if not msg or msg == "" then return end
+    -- The Positions tab sends the chat form of place/rally/fallback and reads
+    -- its cmd/error lines. It claims only its own open command, so this runs
+    -- before the Forever bridge's generic cmd batching would swallow them.
+    if TB.ParsePositionMessage and TB.ParsePositionMessage(msg) then
+        TB.lastSystem = msg
+        return
+    end
     if TB.Forever and not TB.Forever.Native() and TB.Forever.OnSystemMessage then
         if TB.Forever.OnSystemMessage(msg) then
             TB.lastSystem = msg
