@@ -56,7 +56,7 @@ end
 -- ── world: a five-man party of your bots, a roster, a guild ─────────────
 feed({
     "TBM:VERSION|1.12.0",
-    "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service",
+    "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory",
 })
 Mock.world.party = forever and {
     { name = "Thalgrim", class = "Warrior", level = 60 },
@@ -109,6 +109,16 @@ feed({
     "TBM:ORDER|Ironhide|craft|3860|Mithril Casing|1|2|waiting|-|Ironforge",
     "TBM:ORDER_END",
 })
+-- Gear readiness (TBF #404): a tank under both goals with gear issues, and a
+-- healer whose strip still needs a chest and an enchant.
+sys("TBM:ARMORY_BEGIN|2")
+sys("TBM:ARMORY|Thalgrim|1|60|1|1|tank|Protection|65|8.0|0.0|0.0|300|10+11+12+13+14|9.0|440|"
+    .. "ap=1200,crit=10.0,armor=6000,sta=500,sp=0,heal=0,scrit=0.0,mp5=0,int=40")
+sys("TBM:ARMORY|Seraphine|5|60|1|1|healer|Holy|70|0.0|0.0|18.0|280|20+20+20+20+20|16.0|0|"
+    .. "ap=300,crit=5.0,armor=2000,sta=300,sp=200,heal=420,scrit=9.5,mp5=25,int=300")
+sys("TBM:ARMORY_EQ|Thalgrim|1/1|0:12640:0:1:4,1:0:0:0:0,4:13340:0:0:3,15:19019:0:1:5,16:0:0:0:0")
+sys("TBM:ARMORY_EQ|Seraphine|1/1|0:2586:0:1:4,1:0:0:0:0,4:0:0:2:0,15:19019:0:0:5")
+sys("TBM:ARMORY_END|2")
 for _, l in ipairs({
     "Thalgrim: Following you in shield formation.",
     "Seraphine: Drinking — 62% mana.",
@@ -225,10 +235,10 @@ end
 
 scene("fight", function() tab("actions", nil); dump("fight", { main }, "Fight tab, no target") end)
 scene("fight-engage", function()
-    feed({ "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,engage" })
+    feed({ "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory,engage" })
     tab("actions", nil)
     dump("fight-engage", { main }, "Fight tab on a server with the Engage hold")
-    feed({ "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service" })
+    feed({ "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory" })
 end)
 scene("fight-target", function()
     tab("actions", { name = "Defias Pillager", player = false, class = "Rogue" })
@@ -246,13 +256,13 @@ end)
 scene("camp", function() tab("camp", nil); dump("camp", { main }, "Camp tab") end)
 scene("party", function() tab("party", nil); dump("party", { main }, "Party tab") end)
 scene("hire", function()
-    sys("TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,hiring,hire-anywhere")
+    sys("TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory,hiring,hire-anywhere")
     TB.SetHireChoice("class", 8)
     TB.SetHireChoice("spec", 1)
     TB.SetHireChoice("tier", 3)
     tab("hire", nil)
     dump("hire", { main }, "Hire tab: hire anywhere")
-    sys("TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service")
+    sys("TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory")
 end)
 scene("roster", function()
     tab("roster", nil)
@@ -265,6 +275,10 @@ scene("guild", function()
     if TB.ToggleClaimedSelection then TB.ToggleClaimedSelection("Goldie", true) end
     if TB.RefreshGuildView then TB.RefreshGuildView() end
     dump("guild", { main }, "Guild tab with orders")
+end)
+scene("armory", function()
+    tab("armory", nil)
+    dump("armory", { main }, "Armory tab: readiness, hit/defense and the gear strip")
 end)
 scene("log", function() tab("log", nil); dump("log", { main }, "Log tab") end)
 scene("loot", function()
@@ -341,6 +355,15 @@ for _, view in ipairs({ "gear", "bags", "behavior", "spells", "profs" }) do
         dump("panel-" .. view, { main, TB.botPanel }, "Bot panel: " .. view)
     end)
 end
+scene("panel-gear-stats", function()
+    tab("party", nil)
+    TB.OpenBotPanel("Seraphine", "gear")
+    TB.ToggleGearStats()
+    tick(1)
+    dump("panel-gear-stats", { main, TB.botPanel }, "Bot panel: Gear readiness stats")
+    TB.ToggleGearStats()
+    TB.CloseBotPanel()
+end)
 scene("panel-totems", function()
     tab("party", nil)
     feed({
@@ -355,7 +378,7 @@ end)
 scene("panel-choices", function()
     tab("party", nil)
     feed({
-        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,choice",
+        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory,choice",
         "TBM:BOTSTATE|Kaelthor|move=follow,loot=on,hold=on",
         "TBM:CHOICE|Kaelthor|aura=devotion aura,known=devotion aura+retribution aura+shadow resistance",
     })
@@ -383,7 +406,7 @@ local function classControlsParty()
     table.insert(Mock.world.party, { name = "Nightveil", class = "Priest", level = 60 })
     table.insert(Mock.world.party, { name = "Swiftarrow", class = "Hunter", level = 60 })
     feed({
-        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,choice,focus-mark",
+        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory,choice,focus-mark",
         "TBM:CC_ASSIGN_BEGIN|1",
         "TBM:CC_ASSIGN|Vexmora|moon",
         "TBM:CC_ASSIGN_END",
@@ -425,7 +448,7 @@ end)
 scene("blessings", function()
     table.insert(Mock.world.party, { name = "Kaelthor", class = "Paladin", level = 60 })
     feed({
-        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,blessing,choice,blessing-player",
+        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory,blessing,choice,blessing-player",
         "TBM:BOTSTATE|Kaelthor|move=follow,loot=on",
         "TBM:CHOICE|Kaelthor|aura=devotion aura,known=devotion aura+retribution aura+concentration aura+shadow resistance aura",
         "TBM:BLESSING|Kaelthor|warrior=kings,paladin=kings,hunter=might,rogue=might,priest=wisdom,shaman=wisdom,"
@@ -469,7 +492,7 @@ scene("blessings-raid", function()
         return realClass(u)
     end
     feed({
-        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,blessing,choice,blessing-player",
+        "TBM:CAPS|pull-seconds,flee,inventory,behavior,downtime,claimed-roster,guild-orders,professions,dungeon-run,loot-log,service,armory,blessing,choice,blessing-player",
         "TBM:BOTSTATE|Kaelthor|move=follow,loot=on",
         "TBM:BOTSTATE|Sunblade|move=follow,loot=on",
         "TBM:BOTSTATE|Lightward|move=follow,loot=on",

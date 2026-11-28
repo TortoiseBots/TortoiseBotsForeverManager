@@ -252,6 +252,7 @@ for _, file in ipairs({
     "Comms.lua",
     "FakeServer.lua",
     "UI.lua",
+    "Armory.lua",
     "BotPanel.lua",
     "BotTotem.lua",
     "BotTarget.lua",
@@ -6155,6 +6156,9 @@ dofile(root .. "/tests/bridge_toggles_tests.lua")(root)
 dofile(root .. "/tests/bridge_upkeep_tests.lua")(root)
 dofile(root .. "/tests/bridge_info_tests.lua")(root)
 dofile(root .. "/tests/bridge_cc_tests.lua")({ root = root, chatFilters = chatFilters })
+dofile(root .. "/tests/armory_tests.lua")({
+    advanceTime = function(dt) now = now + (dt or 1) end,
+})
 
 -- Chat fallback must queue while combat-locked; calling SendChatMessage there
 -- taints the client and prints ADDON_ACTION_BLOCKED UNKNOWN().

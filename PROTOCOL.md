@@ -59,9 +59,9 @@ Direction follows the player: **C→S** is the addon asking, **S→C** is the mo
 
 Capability tokens the addon gates on: `pull-seconds`, `engage`, `flee`, `inventory`, `claimed-roster`,
 `guild-orders`, `guild-order-nobuy`, `guild-order-steps`, `dungeon-run`, `loot-log`, `downtime`, `choice`,
-`focus-mark`, `blessing`, `blessing-player`, `professions`, `use-object`, `hiring`, `hire-anywhere` (`behavior`
-is advertised but not gated on). An unknown token is ignored. The first `TBM:CAPS` line also switches the bridge
-mode off.
+`focus-mark`, `blessing`, `blessing-player`, `professions`, `armory`, `use-object`, `hiring`, `hire-anywhere`
+(`behavior` is advertised but not gated on). An unknown token is ignored. The first `TBM:CAPS` line also switches
+the bridge mode off.
 
 ## 4. Commands (C→S)
 
@@ -100,6 +100,7 @@ are listed with each command; `ACK`/`ERR` mean `TBM:ACTION_ACK|…` / `TBM:ACTIO
 |---|---|
 | `inv <Bot>` | `TBM:INV_BEGIN|<bot>|<copper>`, `TBM:INV_EQ|…`, `TBM:INV_ITEM|…`, `TBM:INV_END|<bot>|<free>|<total>` |
 | `professions <Bot>` | `TBM:PROF_BEGIN|<bot>`, `TBM:PROF|…`, `TBM:RECIPE|…`, `TBM:RECIPE_MISSING|…`, `TBM:PROF_END|<bot>|<recipes>[|<missing>]` |
+| `armory [<Bot>]` | `TBM:ARMORY_BEGIN|<n>`, one `TBM:ARMORY|…` plus its `TBM:ARMORY_EQ|…` strip per bot, `TBM:ARMORY_END|<n>`; `ACK armory\|roster\|<n>\|-` on the addon channel |
 | `item <Bot> equip <bag> <slot>`, `item <Bot> unequip <slot>`, `item <Bot> use <bag> <slot>`, `item <Bot> trade` | `ACK item …`, refreshed `INV_*` snapshot |
 | `command <Bot> <verb> [args]` | stock chat replies (whisper mirror via `ACK`), e.g. bank/mail/spells/pet |
 
@@ -161,12 +162,24 @@ TBM:PROF|<skillId>|<value>|<max>
 TBM:RECIPE|<skillId>|<spellId>|<itemId|0>|<orange>|<yellow>|<green>|<grey>[|<order>]
 TBM:RECIPE_MISSING|<skillId>|<spellId>|<itemId|0>|<reqSkill>|<recipeItemId|0>
 TBM:PROF_END|<bot>|<recipeCount>[|<missingCount>]
+TBM:ARMORY_BEGIN|<n>
+TBM:ARMORY|<name>|<classId>|<level>|<online>|<inGroup>|<role>|<spec>|<avgIlvl>|
+           <meleeHit>|<rangedHit>|<spellHit>|<defense>|<fire>+<nature>+<frost>+<shadow>+<arcane>|<hitCap>|<defCap>|<stats>
+TBM:ARMORY_EQ|<name>|<part>/<parts>|<slot>:<itemId>:<enchantId>:<miss>:<quality>,…
+TBM:ARMORY_END|<n>
 TBM:SERVICE|<bot>|<food 0|1>|<water 0|1>|<healthstone 0|1>|<portal spellId:city,…|->
 TBM:TOTEM|<bot>|earth=<v>,fire=<v>,water=<v>,air=<v>,mode=<auto|prepull|manual>[,known=a+b]
 TBM:CHOICE|<bot>|<kind>=<value|auto>,known=<v>+<v>
 TBM:BLESSING|<bot>|warrior=<b>,paladin=<b>,…,druid=<b>,known=<b>+<b>[,players=<Name>:<b>+…]
 ```
 `INV_*` flags: `e` equippable, `u` upgrade over the equipped item, `b` no-trade.
+`ARMORY` `<role>` is `tank`, `healer`, `melee`, `ranged` or `caster`; the three hit values are the bonuses the
+server's miss roll applies, `<defCap>` is the defense that keeps a +3 opponent from critting a tank, and `<stats>`
+is `ap=…,crit=…,armor=…,sta=…,sp=…,heal=…,scrit=…,mp5=…,int=…` (`-` when the bot is offline). An equipment strip
+longer than one addon message arrives in numbered `part/parts` lines; the addon joins them and treats a strip as
+known only when every part arrived (`1/1` for the usual single message). `<miss>` is `0` fine, `1` item present
+without its permanent enchant, `2` an empty slot that should hold something; `<quality>` colours items the client
+has not cached yet.
 `BOTSTATE` keys are the per-bot switches (e.g. `move=follow`, `loot=on`, `aoe=off`).
 
 ### Orders

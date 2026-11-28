@@ -22,7 +22,8 @@ Once the server advertises native verbs (`TBM:VERBS`) and capabilities (`TBM:CAP
 |---|---|
 | **Fight** | Attack, Pull, Pullback, Focus (target), End pull, Follow, Stay, Come, Free, Use (target), Spread / party switches (when `behavior` is advertised). |
 | **Party** | Bot roles (tank, healer, DPS), Summon, Kick, Log out, Blessings board & per-player exceptions (`blessing`, `blessing-player`). |
-| **Bot panel** | Gear & Bags (`inv`, `item equip`/`unequip`/`give`/`trade`), Behaviour toggles (`behavior`), Shaman totems (`totem`), Class choices (`choice`), Mage/Warlock services & portals (`service`), Professions & recipes (`professions`), Auto-gear, Upkeep, Craft orders. |
+| **Bot panel** | Gear & Bags (`inv`, `item equip`/`unequip`/`give`/`trade`), gear readiness dots, the Missing line and the Stats/Model sheet (`armory`), Behaviour toggles (`behavior`), Shaman totems (`totem`), Class choices (`choice`), Mage/Warlock services & portals (`service`), Professions & recipes (`professions`), Auto-gear, Upkeep, Craft orders. |
+| **Armory** | Readiness list for the bots you may order (only while the server advertises `armory`): spec and role, hit against the +3 goal, tank defense against the crit cover, role tiles and problem chips, search / This raid / Problems only filters, and a 17-slot equipped strip with quality borders and red dots on gaps. |
 | **Loot** | Loot & roll history (`lootlog` / `loot-log`). |
 | **Guild & Orders** | Guild orders (Farm, Buy, Craft, Cancel, Active orders; search/enchants/meet/rank remain greyed out). |
 | **Camp** | Rest, Repair, Sell, Train, Release, Accept quests, Drop totems (`totem`). |
