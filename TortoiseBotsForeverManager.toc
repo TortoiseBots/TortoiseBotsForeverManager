@@ -22,6 +22,7 @@ Roster.lua
 Comms.lua
 FakeServer.lua
 UI.lua
+Armory.lua
 BotPanel.lua
 BotTarget.lua
 BotTotem.lua

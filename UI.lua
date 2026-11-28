@@ -1766,7 +1766,8 @@ function TB.InitUI()
 
     -- Tabs by kind of work: Fight (in a pull), Camp (between pulls), Party
     -- (who does what), Hire (only while the server allows hiring anywhere),
-    -- Guild (claimed bots), Roster (who is logged in), Raid (raid only),
+    -- Guild (claimed bots), Armory (gear readiness, only while the server
+    -- sends its snapshot), Roster (who is logged in), Raid (raid only),
     -- Dungeon (only while the server runs the dungeon run leader), Loot (only
     -- while the server keeps loot history), Log.
     local tabActions = makeTab("Fight", 0)
@@ -1774,6 +1775,7 @@ function TB.InitUI()
     local tabParty = makeTab("Party", 160)
     local tabHire = makeTab("Hire", 240)
     local tabGuild = makeTab("Guild", 320)
+    local tabArmory = makeTab("Armory", 360)
     local tabRoster = makeTab("Roster", 400)
     local tabRaid = makeTab("Raid", 480)
     local tabDungeon = makeTab("Dungeon", 560)
@@ -2618,6 +2620,7 @@ end
     end
 
     local guildFrame = CreateGuildView(content)
+    local armoryFrame = TB.CreateArmoryFrame and TB.CreateArmoryFrame(content) or nil
 
     local function CreateLogView(parent)
         local logFrame = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
@@ -3142,6 +3145,7 @@ end
         { name = "party",   tab = tabParty,   frame = partyFrame },
         { name = "hire",    tab = tabHire,    frame = hireFrame },
         { name = "guild",   tab = tabGuild,   frame = guildFrame },
+        { name = "armory",  tab = tabArmory,  frame = armoryFrame },
         { name = "roster",  tab = tabRoster,  frame = rosterFrame },
         { name = "raid",    tab = tabRaid,    frame = raidFrame },
         { name = "dungeon", tab = tabDungeon, frame = dungeonFrame },
@@ -3157,13 +3161,15 @@ end
         if name == "raid" then return inRaid() end
         if name == "dungeon" then return serverHasCap("dungeon-run") end
         if name == "loot" then return serverHasCap("loot-log") end
+        -- The Armory tab exists only while the server answers its snapshot.
+        if name == "armory" then return armoryFrame ~= nil and serverHasCap("armory") end
         -- Hiring is normally a recruiter in an inn. The Hire tab exists only
         -- while the server says it also allows hiring from anywhere.
         if name == "hire" then return serverHasCap("hire-anywhere") end
         return true
     end
 
-    -- Responsive tab bar layout: adjusts width and stride to fit 6 to 10 tabs.
+    -- Responsive tab bar layout: adjusts width and stride to fit 6 to 11 tabs.
     local function layoutTabs()
         local visibleCount = 0
         for _, t in ipairs(tabs) do
@@ -3225,6 +3231,9 @@ end
             if TB.RequestOrderList then TB.RequestOrderList() end
         elseif name == "party" then
             if TB.RefreshPartyView then TB.RefreshPartyView() end
+        elseif name == "armory" then
+            if TB.RefreshArmoryView then TB.RefreshArmoryView() end
+            if TB.RequestArmory then TB.RequestArmory() end
         elseif name == "hire" then
             if TB.RefreshHireTab then TB.RefreshHireTab() end
         elseif name == "log" then
@@ -3249,8 +3258,8 @@ end
     end
 
     -- Joining or leaving a raid adds or removes the Raid tab; the server's
-    -- dungeon-run, loot-log and hire-anywhere capabilities do the same for
-    -- the Dungeon, Loot and Hire tabs.
+    -- dungeon-run, loot-log, hire-anywhere and armory capabilities do the
+    -- same for the Dungeon, Loot, Hire and Armory tabs.
     TB.UpdateRaidTab = function()
         local current = TortoiseBotsDB and TortoiseBotsDB.activeTab
         if current and not tabShown(current) then
@@ -3266,6 +3275,7 @@ end
     TB.tabLoot, TB.lootFrame = tabLoot, lootFrame
     TB.tabHire, TB.hireFrame = tabHire, hireFrame
     TB.tabGuild, TB.guildFrame = tabGuild, guildFrame
+    TB.tabArmory, TB.armoryFrame = tabArmory, armoryFrame
     TB.tabRaid, TB.raidFrame = tabRaid, raidFrame
     TB.tabCamp = tabCamp
     TB.actionsFrame, TB.partyFrame, TB.rosterFrame, TB.logFrame = actionsFrame, partyFrame, rosterFrame, logFrame

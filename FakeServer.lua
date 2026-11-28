@@ -21,8 +21,8 @@ local PREFIX = (C and C.ADDON_PREFIX) or "TBM"
 local BOTS = { "Alpha", "Bravo" }
 local GUIDS = { Alpha = "101", Bravo = "102" }
 local CLASS_IDS = { Alpha = "1", Bravo = "5" }   -- warrior, priest
-local FAKE_VERBS = "roster,list,alts,behavior,inv,inventory,item,trade,professions,service,totem,choice,blessing,order,lootlog,loot,action,add,remove,logout,invite,uninvite,summon,role,autogear,maintenance,command,run,strategy,formation,downtime,features,help,hire"
-local FAKE_CAPS = "order,order-steps,guild-order-steps,professions,blessing,blessing-player,choice,service,totem,behavior,inventory,loot-log,guild-bots,altsummary,run,hiring,hire-anywhere"
+local FAKE_VERBS = "roster,list,alts,behavior,inv,inventory,item,trade,professions,service,totem,choice,blessing,order,lootlog,loot,action,add,remove,logout,invite,uninvite,summon,role,autogear,maintenance,command,run,strategy,formation,downtime,features,help,hire,armory"
+local FAKE_CAPS = "order,order-steps,guild-order-steps,professions,blessing,blessing-player,choice,service,totem,behavior,inventory,loot-log,guild-bots,altsummary,run,hiring,hire-anywhere,armory"
 
 local function emit(line)
     if TB.trace and TB.TracePrint then TB.TracePrint("< " .. line .. "   [fake]") end
@@ -101,6 +101,53 @@ local function professionsStream(bot)
     emit("TBM:PROF_END|" .. bot .. "|1|0")
 end
 
+-- Armory snapshot: a tank with missing enchants and one empty slot, and a
+-- healer that is ready. Alpha's strip arrives in two parts, like the real
+-- server splits one that would not fit a single 255-byte addon message.
+local ARMORY_ROWS = {
+    Alpha = {
+        classId = 1, level = 60, role = "tank", spec = "Protection", ilvl = 65,
+        melee = 8.0, ranged = 0.0, spell = 0.0, defense = 300, resists = "10+11+12+13+14",
+        hitCap = 9.0, defCap = 440,
+        stats = "ap=1200,crit=10.0,armor=6000,sta=500,sp=0,heal=0,scrit=0.0,mp5=0,int=40",
+        parts = {
+            "0:12345:0:1:3,1:12346:0:0:2,2:12347:0:1:3,3:0:0:0:0,4:0:0:2:0,5:12348:0:1:2,6:12349:0:0:2,7:12350:0:0:2,8:12351:0:1:2",
+            "9:12352:0:1:2,10:12353:0:0:2,11:12354:0:0:2,12:0:0:2:0,13:0:0:2:0,14:12355:0:0:2,15:12356:0:0:2,16:0:0:0:0,17:12357:0:0:2",
+        },
+    },
+    Bravo = {
+        classId = 5, level = 60, role = "healer", spec = "Holy", ilvl = 70,
+        melee = 0.0, ranged = 0.0, spell = 18.0, defense = 280, resists = "20+20+20+20+20",
+        hitCap = 16.0, defCap = 0,
+        stats = "ap=300,crit=5.0,armor=2000,sta=300,sp=200,heal=420,scrit=9.5,mp5=25,int=300",
+        parts = { "0:12345:0:0:3,1:12346:0:0:2,15:12358:0:0:2,16:12359:0:0:2" },
+    },
+}
+
+local function armoryStream(only)
+    local names = {}
+    for _, name in ipairs(BOTS) do
+        if not only or only == name then names[#names + 1] = name end
+    end
+    emit("TBM:ARMORY_BEGIN|" .. #names)
+    for _, name in ipairs(names) do
+        local row = ARMORY_ROWS[name]
+        local group = (name == BOTS[1]) and "1" or "0"
+        emit("TBM:ARMORY|" .. name .. "|" .. row.classId .. "|" .. row.level .. "|1|" .. group
+            .. "|" .. row.role .. "|" .. row.spec .. "|" .. row.ilvl
+            .. "|" .. string.format("%.1f", row.melee) .. "|" .. string.format("%.1f", row.ranged)
+            .. "|" .. string.format("%.1f", row.spell) .. "|" .. row.defense .. "|" .. row.resists
+            .. "|" .. string.format("%.1f", row.hitCap) .. "|" .. row.defCap .. "|" .. row.stats)
+    end
+    for _, name in ipairs(names) do
+        local parts = ARMORY_ROWS[name].parts
+        for index, entries in ipairs(parts) do
+            emit("TBM:ARMORY_EQ|" .. name .. "|" .. index .. "/" .. #parts .. "|" .. entries)
+        end
+    end
+    emit("TBM:ARMORY_END|" .. #names)
+end
+
 local function orderStream()
     emit("TBM:ORDER_ACCESS|0|Member|1|0|1|0")
     emit("TBM:ORDER_BEGIN|1")
@@ -165,6 +212,12 @@ function TB.FakeServerSend(cmd)
     if verb == "professions" then
         local bot = rest ~= "" and rest or BOTS[1]
         professionsStream(bot)
+        return true
+    end
+    if verb == "armory" then
+        local bot = TB.NormalizeName(rest) or TB.NormalizeName(string.match(rest or "", "^(%S+)"))
+        if bot and not ARMORY_ROWS[bot] then bot = nil end
+        armoryStream(bot)
         return true
     end
     if verb == "service" then
